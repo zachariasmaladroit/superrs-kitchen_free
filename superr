@@ -3802,7 +3802,7 @@ extract_new() {
 	return 1
 }
 findfstab() {
-	fsdir="$romdir/bootimg/ramdisk $romdir/system $romdir/vendor/etc $romdir/recoveryimg/ramdisk/etc"
+	fsdir="$romdir/bootimg/ramdisk $romdir/system $romdir/vendor/etc $romdir/recoveryimg/ramdisk/etc $romdir/system/vendor/etc"
 	for i in $fsdir; do
 		fstmp=$(${usesudo}find $i -maxdepth 1 ! -type l 2>/dev/null | grep fstab | grep -v "goldfish\|ranchu\|charger\|zram\|nodata\|\.fwup\|\.fota\|mofd_v1\|\.ftm\|\.sdboot" | sed 's/\.\///')
 		if [[ -e $fstmp ]]; then
@@ -4221,28 +4221,27 @@ get_contexts() {
 }
 get_devicename() {
 	devicename=""
-	if [[ -f $sysdir/build.prop ]]; then
-		if [[ ! $(grep "ro.product.device=" $sysdir/build.prop) = "" ]]; then
-			devicename=$(grep -m 1 "ro.product.device=" $sysdir/build.prop | cut -d"=" -f2)
-			devicechk="ro.product.device"
-		elif [[ ! $(grep "ro.build.product=" $sysdir/build.prop) = "" ]]; then
-			devicename=$(grep -m 1 "ro.build.product=" $sysdir/build.prop | cut -d"=" -f2)
-			devicechk="ro.build.product"
-		elif [[ ! $(grep "ro.product.name=" $sysdir/build.prop) = "" ]]; then
-			devicename=$(grep -m 1 "ro.product.name=" $sysdir/build.prop | cut -d"=" -f2)
-			devicechk="ro.product.name"
+	while read i; do
+		if [[ ! -f $i ]]; then
+			continue
 		fi
-	elif [[ -f $romdir/build.prop ]]; then
-		if [[ ! $(grep "ro.product.device=" $romdir/build.prop) = "" ]]; then
-			devicename=$(grep -m 1 "ro.product.device=" $romdir/build.prop | cut -d"=" -f2)
+		while read x; do
+			if [[ $(grep "$x=" $i) ]]; then
+				devicename=$(grep -m 1 "$x=" $i | cut -d"=" -f2)
+				devicechk="$x"
+				break
+			fi
+		done <<< "$(echo -e "ro.product.device\nro.build.product\nro.product.name")"
+	done <<< "$(echo -e "$sysdir/build.prop\n$romdir/build.prop")"
+	if [[ ! $devicename ]]; then
+		while read i; do
+			if [[ ! -f $i ]]; then
+				continue
+			fi
+			devicename=$(grep -m 1 "ro.build.description=" $i | cut -d"=" -f2 | cut -d'-' -f1)
 			devicechk="ro.product.device"
-		elif [[ ! $(grep "ro.build.product=" $romdir/build.prop) = "" ]]; then
-			devicename=$(grep -m 1 "ro.build.product=" $romdir/build.prop | cut -d"=" -f2)
-			devicechk="ro.build.product"
-		elif [[ ! $(grep "ro.product.name=" $romdir/build.prop) = "" ]]; then
-			devicename=$(grep -m 1 "ro.product.name=" $romdir/build.prop | cut -d"=" -f2)
-			devicechk="ro.product.name"
-		fi
+			break
+		done <<< "$(echo -e "$sysdir/build.prop\n$romdir/build.prop")"
 	fi
 }
 get_heapsize() {
@@ -6634,7 +6633,7 @@ if [[ $cyg = "" ]]; then
 	fi
 fi
 choice=""
-while [[ ! ${choice} =~ ^[1-8]$ ]] && [[ ! $choice = "q" ]]; do
+while [[ ! ${choice} =~ ^[1-9]$ ]] && [[ ! $choice = "q" ]]; do
 	banner
 	if [[ ! $(ls -d */ | grep 'superr_') = "" ]]; then
 		echo "$bluet$t_startup_project $greent$romname$normal"
@@ -6653,6 +6652,7 @@ while [[ ! ${choice} =~ ^[1-8]$ ]] && [[ ! $choice = "q" ]]; do
 	echo "${yellowt}6) $t_menu_misc"
 	echo "7) $t_menu_boot_recovery"
 	echo "8) $t_menu_rom_tools"
+	echo "$bold${cyant}9) $t_menu_donate$normal"
 	echo "${magentat}q = $t_menu_quit$normal"
 	echo ""
 	read -n 1 -p "$t_select" choice
@@ -6667,7 +6667,6 @@ elif [[ $choice = "2" ]]; then
 	romname=""
 	cd $base
 	exec ./superr
-	return 1
 # START Delete a project
 elif [[ $choice = "3" ]]; then
 	delete_project
@@ -6692,6 +6691,11 @@ elif [[ $choice = "7" ]]; then
 elif [[ $choice = "8" ]]; then
 	rom_tools
 	return 1
+# START Get donate version for Windows & Linux!
+elif [[ $choice = "9" ]]; then
+	xdg-open "https://forum.xda-developers.com/apps/superr-kitchen/windows-linux-superr-s-kitchen-v3-0-0-0-t3601702" 2>/dev/null 1>/dev/null &
+	cd $base
+	exec ./superr
 # START Quit
 elif [[ $choice = "q" ]]; then
 	echo ""
