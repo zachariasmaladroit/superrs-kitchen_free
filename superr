@@ -4,7 +4,6 @@
 
 banner() {
 	echo "$clears"
-	echo ""
 	echo "------------------------------------------------------"
 	echo "$bold$stand                   SuperR's Kitchen                   $normal"
 	echo "$italic$stand                       by SuperR                      $normal"
@@ -622,7 +621,7 @@ boot_tools() {
 			mkdir -p $base/superr_$romname/00_project_files/logs
 		fi
 		get_devicename
-		if [[ $devicename = "" ]]; then
+		if [[ "$devicename" = "" ]]; then
 			banner
 			echo "$redb$yellowt$t_error$normal"
 			echo "$redt$t_boot_prop_warn$normal"
@@ -631,9 +630,9 @@ boot_tools() {
 			boot_tools
 			return 1
 		else
-			mkdir -p $base/tools/devices/$devicename
+			mkdir -p "$base/tools/devices/$devicename"
 			deviceloc=""
-			deviceloc=$base/tools/devices/$devicename
+			deviceloc="$base/tools/devices/$devicename"
 		fi
 		mkdir $prfiles/boot
 		cd $prfiles/boot
@@ -661,11 +660,12 @@ boot_tools() {
 			fi
 		fi
 		part_setup
+		devname1=$(echo "$devicename" | sed 's/\ /\\ /g')
 		if [[ ! -f $prfiles/assert ]]; then
 			cd $prfiles/boot
 			cat $tools/updater/custom/assert >> assert
 			cat $tools/updater/custom/abort >> assert
-			sed -i "s/#DEVICENAME/$devicename/g" assert
+			sed -i "s/#DEVICENAME/$devname1/g" assert
 			sed -i "s/#DEVICECHK/$devicechk/g" assert
 			assertch="1"
 			assert_devices
@@ -676,7 +676,7 @@ boot_tools() {
 		grep -v "#ASSERT" $usdir/updater-script > $usdir/updater-script2
 		mv $usdir/updater-script2 $usdir/updater-script
 		sed -i "s/#SIGNATURE/$signature3/g" $usdir/updater-script
-		sed -i "s/#DEVICENAME/$devicename/g" $usdir/updater-script
+		sed -i "s/#DEVICENAME/$devname1/g" $usdir/updater-script
 		sed -i "s/#DEVICECHK/$devicechk/g" $usdir/updater-script
 		banner
 		if [[ $chosenimg = "recovery" ]]; then
@@ -858,7 +858,7 @@ build_custom_zip() {
 			echo ""
 			exit
 		fi
-		byname=$(cat $deviceloc/superr_byname)
+		byname=$(cat "$deviceloc/superr_byname")
 		cd $prfiles
 		get_sig
 		banner
@@ -878,10 +878,11 @@ build_custom_zip() {
 		cp $tools/updater/custom/updater-script-system $usdir/updater-script
 		chosenimg="boot"
 		part_setup
+		devname1=$(echo "$devicename" | sed 's/\ /\\ /g')
 		if [[ ! -f assert ]]; then
 			cat $tools/updater/custom/assert >> assert
 			cat $tools/updater/custom/abort >> assert
-			sed -i "s/#DEVICENAME/$devicename/g" assert
+			sed -i "s/#DEVICENAME/$devname1/g" assert
 			sed -i "s/#DEVICECHK/$devicechk/g" assert
 			assertch="1"
 			assert_devices
@@ -895,7 +896,7 @@ build_custom_zip() {
 		grep -v "#ASSERT" $usdir/updater-script > $usdir/updater-script2
 		mv $usdir/updater-script2 $usdir/updater-script
 		sed -i "s/#SIGNATURE/$signature1/g" $usdir/updater-script
-		sed -i "s/#DEVICENAME/$devicename/g" $usdir/updater-script
+		sed -i "s/#DEVICENAME/$devname1/g" $usdir/updater-script
 		sed -i "s/#DEVICECHK/$devicechk/g" $usdir/updater-script
 		if [[ $choice = "1" || $choice = "2" || $choice = "4" ]]; then
 			cd $romdir
@@ -3232,31 +3233,31 @@ extract_new() {
 				get_devicename
 				deviceloc="$base/tools/devices/$devicename"
 				rm -rf $romdir/build.prop
-				mkdir -p $deviceloc
-				if [[ ! -f $deviceloc/superr_byname ]]; then
+				mkdir -p "$deviceloc"
+				if [[ ! -f "$deviceloc/superr_byname" ]]; then
 					byname1=$($adb shell "find /dev -name by-name 2>/dev/null" | grep -m 1 "")
 					if [[ $byname1 = "" ]]; then
 						byname1=$($adb shell su -c "find /dev -name by-name 2>/dev/null" | grep -m 1 "")
 					fi
 					amnt=$($adb shell "mount")
 					if [[ ! $(echo "$amnt" | grep "/SYSTEM") = "" ]]; then
-						touch $deviceloc/superr_capbyname
+						touch "$deviceloc/superr_capbyname"
 					elif [[ ! $(echo "$amnt" | grep "/APP") = "" ]]; then
-						touch $deviceloc/superr_appbyname
+						touch "$deviceloc/superr_appbyname"
 					fi
-					echo "$byname1" | sed 's:/:\\/:g' > $deviceloc/superr_byname
+					echo "$byname1" | sed 's:/:\\/:g' > "$deviceloc/superr_byname"
 				fi
-				byname=$(cat $deviceloc/superr_byname | sed 's:\\::g')
+				byname=$(cat "$deviceloc/superr_byname" | sed 's:\\::g')
 				pullimg="boot"
 				pullimgr
 				pullimg="system"
 				pullimgr
 				pullimg="recovery"
 				pullimgr
-				if [[ -f $deviceloc/superr_mmc && ! $(grep "vendor" $deviceloc/superr_mmc) = "" ]]; then
+				if [[ -f "$deviceloc/superr_mmc" && $(grep "vendor" "$deviceloc/superr_mmc") ]]; then
 					pullimg="vendor"
 					pullimgr
-				elif [[ ! $(grep "by-name" $deviceloc/superr_byname) = "" && ! $($adb shell ls -la $byname | grep vendor) = "" ]]; then
+				elif [[ $(grep "by-name" "$deviceloc/superr_byname") && $($adb shell ls -la $byname | grep vendor) ]]; then
 					pullimg="vendor"
 					pullimgr
 				fi
@@ -3281,31 +3282,31 @@ extract_new() {
 				get_devicename
 				deviceloc="$base/tools/devices/$devicename"
 				rm -rf $romdir/build.prop
-				mkdir -p $deviceloc
-				if [[ ! -f $deviceloc/superr_byname ]]; then
+				mkdir -p "$deviceloc"
+				if [[ ! -f "$deviceloc/superr_byname" ]]; then
 					byname1=$($adb shell "find /dev -name by-name 2>/dev/null" | grep -m 1 "")
 					if [[ $byname1 = "" ]]; then
 						byname1=$($adb shell su -c "find /dev -name by-name 2>/dev/null" | grep -m 1 "")
 					fi
 					amnt=$($adb shell "mount")
 					if [[ ! $(echo "$amnt" | grep "/SYSTEM") = "" ]]; then
-						touch $deviceloc/superr_capbyname
+						touch "$deviceloc/superr_capbyname"
 					elif [[ ! $(echo "$amnt" | grep "/APP") = "" ]]; then
-						touch $deviceloc/superr_appbyname
+						touch "$deviceloc/superr_appbyname"
 					fi
-					echo "$byname1" | sed 's:/:\\/:g' > $deviceloc/superr_byname
+					echo "$byname1" | sed 's:/:\\/:g' > "$deviceloc/superr_byname"
 				fi
-				byname=$(cat $deviceloc/superr_byname | sed 's:\\::g')
+				byname=$(cat "$deviceloc/superr_byname" | sed 's:\\::g')
 				pullimg="system"
 				pullimga
 				pullimg="boot"
 				pullimga
 				pullimg="recovery"
 				pullimga
-				if [[ -f $deviceloc/superr_mmc && ! $(grep "vendor" $deviceloc/superr_mmc) = "" ]]; then
+				if [[ -f "$deviceloc/superr_mmc" && $(grep "vendor" "$deviceloc/superr_mmc") ]]; then
 					pullimg="vendor"
 					pullimga
-				elif [[ -s $deviceloc/superr_byname && ! $($adb shell su -c "ls -la $byname" | grep vendor) = "" ]]; then
+				elif [[ -s "$deviceloc/superr_byname" && $($adb shell su -c "ls -la $byname" | grep vendor) ]]; then
 					pullimg="vendor"
 					pullimga
 				fi
@@ -3394,10 +3395,10 @@ extract_new() {
 			cp -R $tools/updater/META-INF META-INF
 			cp -R $tools/updater/config $romdir/
 			get_devicename
-			if [[ ! -d $base/tools/devices/$devicename ]]; then
-				mkdir -p $base/tools/devices/$devicename
+			if [[ ! -d "$base/tools/devices/$devicename" ]]; then
+				mkdir -p "$base/tools/devices/$devicename"
 			fi
-			deviceloc=$base/tools/devices/$devicename
+			deviceloc="$base/tools/devices/$devicename"
 			update_project
 		elif [[ ! $($p7z l $romzip | grep system.new.dat) = "" ]]; then
 			banner
@@ -3518,18 +3519,18 @@ extract_new() {
 			deviceloc=""
 			if [[ -f $sysdir/build.prop && -f $usdir/updater-script ]]; then
 				get_devicename
-				mkdir -p $base/tools/devices/$devicename
-				deviceloc=$base/tools/devices/$devicename
+				mkdir -p "$base/tools/devices/$devicename"
+				deviceloc="$base/tools/devices/$devicename"
 				cd $usdir
-				if [[ ! -f $deviceloc/superr_byname ]]; then
+				if [[ ! -f "$deviceloc/superr_byname" ]]; then
 					mountck=$(grep "/system" updater-script | grep -m 1 "^mount" | gawk '{ print $3 }' | sed 's/\"//g; s/\/system//g; s/\,//g; s:\/:\\/:g')
 					if [[ ! $(echo "$mountck" | grep mmcblk) = "" ]]; then
-						echo "$mountck \/system" > $deviceloc/superr_mmc
+						echo "$mountck \/system" > "$deviceloc/superr_mmc"
 						bootmmc=$(grep boot.img updater-script | cut -d'"' -f4 | sed 's:\/:\\/:g')
-						echo "$bootmmc \/boot" >> $deviceloc/superr_mmc
-						echo "mmc" > $deviceloc/superr_byname
+						echo "$bootmmc \/boot" >> "$deviceloc/superr_mmc"
+						echo "mmc" > "$deviceloc/superr_byname"
 					elif [[ ! $(echo "$mountck" | grep by-name) = "" ]]; then
-						echo "$mountck" > $deviceloc/superr_byname
+						echo "$mountck" > "$deviceloc/superr_byname"
 					fi
 				fi
 				permtype=""
@@ -3762,9 +3763,9 @@ extract_new() {
 				done
 			fi
 			get_devicename
-			mkdir -p $base/tools/devices/$devicename
+			mkdir -p "$base/tools/devices/$devicename"
 			deviceloc=""
-			deviceloc=$base/tools/devices/$devicename
+			deviceloc="$base/tools/devices/$devicename"
 			rm -rf $prfiles/permtype
 			permtype=""
 			cp -R $tools/updater/META-INF $romdir/
@@ -3832,8 +3833,8 @@ findfstab() {
 findimgsize() {
 	cd $romdir
 	imgfile=$(echo $whatimg | cut -c1-3)
-	if [[ -f $deviceloc/${imgfile}imgsize ]]; then
-		tmpsize=$(cat $deviceloc/${imgfile}imgsize)
+	if [[ -f "$deviceloc/${imgfile}imgsize" ]]; then
+		tmpsize=$(cat "$deviceloc/${imgfile}imgsize")
 	else
 		choice=""
 		while [[ ! ${choice} =~ ^[1-4]$ ]] && [[ ! $choice = "q" ]]; do
@@ -3864,12 +3865,12 @@ findimgsize() {
 			fi
 			banner
 			echo "$bluet$t_extract_detect $whatimg ...$normal"
-			byname=$(cat $deviceloc/superr_byname)
+			byname=$(cat "$deviceloc/superr_byname")
 			byname2=$(echo "$byname" | sed 's/\\//g')
-			if [[ -f $deviceloc/superr_mmc ]]; then
-				imgblock=$(grep $whatimg $deviceloc/superr_mmc | gawk '{ print $1 }' | cut -d"/" -f4)
+			if [[ -f "$deviceloc/superr_mmc" ]]; then
+				imgblock=$(grep $whatimg "$deviceloc/superr_mmc" | gawk '{ print $1 }' | cut -d"/" -f4)
 			else
-				if [[ -f $deviceloc/superr_appbyname ]]; then
+				if [[ -f "$deviceloc/superr_appbyname" ]]; then
 					if [[ $whatimg = "system" ]]; then
 						newname="APP"
 					elif [[ $whatimg = "vendor" ]]; then
@@ -3877,7 +3878,7 @@ findimgsize() {
 					elif [[ $whatimg = "data" ]]; then
 						newname="UDA"
 					fi
-				elif [[ -f $deviceloc/superr_capbyname ]]; then
+				elif [[ -f "$deviceloc/superr_capbyname" ]]; then
 					if [[ $whatimg = "system" ]]; then
 						newname="SYSTEM"
 					elif [[ $whatimg = "vendor" ]]; then
@@ -3968,7 +3969,7 @@ findimgsize() {
 	export ${imgfile}size=$tmpsize
 }
 get_byname() {
-	if [[ ! -s $deviceloc/superr_byname ]]; then
+	if [[ ! -s "$deviceloc/superr_byname" ]]; then
 		choice=""
 		while [[ ! ${choice} =~ ^[1-4]$ ]] && [[ ! $choice = "q" ]] && [[ ! $choice = "m" ]]; do
 			banner
@@ -3992,13 +3993,13 @@ get_byname() {
 			banner
 			echo "${bluet}...$normal"
 			get_devicename
-			echo "$devicename" > $deviceloc/devicename
+			echo "$devicename" > "$deviceloc/devicename"
 			byname1=$($adb shell "find /dev -name by-name 2>/dev/null" | grep -m 1 "")
 			if [[ $byname1 = "" ]]; then
 				byname1=$($adb shell su -c "find /dev -name by-name 2>/dev/null" | grep -m 1 "")
 			fi
 			if [[ $byname1 = "" ]]; then
-				rm -rf $deviceloc/superr_byname
+				rm -rf "$deviceloc/superr_byname"
 				banner
 				echo "$redb$yellowt$t_error$normal"
 				echo -e "$redt$t_byname_error_device$normal"
@@ -4008,15 +4009,13 @@ get_byname() {
 				return 1
 			fi
 			if [[ ! $($adb shell "mount" | grep "/SYSTEM") = "" ]]; then
-				touch $deviceloc/superr_capbyname
+				touch "$deviceloc/superr_capbyname"
 			elif [[ ! $($adb shell "mount" | grep "/APP") = "" ]]; then
-				touch $deviceloc/superr_appbyname
+				touch "$deviceloc/superr_appbyname"
 			fi
-			echo "$byname1" | sed 's:/:\\/:g' > $deviceloc/superr_byname
-			rm -rf $deviceloc/devicename
-			rm -rf $deviceloc/build.prop
-			rm -rf $prfiles/permtype_old
-			byname=$(cat $deviceloc/superr_byname)
+			echo "$byname1" | sed 's:/:\\/:g' > "$deviceloc/superr_byname"
+			rm -rf "$deviceloc/devicename" "$deviceloc/build.prop" $prfiles/permtype_old
+			byname=$(cat "$deviceloc/superr_byname")
 		fi
 		if [[ $choice = "m" ]]; then
 			cd $base
@@ -4046,7 +4045,7 @@ get_byname() {
 					echo "$redt$t_byname_no_files$normal"
 					echo ""
 					read -p "$t_enter_continue"
-					rm -rf $deviceloc/superr_byname
+					rm -rf "$deviceloc/superr_byname"
 					get_byname
 					return 1
 				fi
@@ -4059,19 +4058,19 @@ get_byname() {
 			findfstab
 			bntest=$(${usesudo}grep -v "^#" $fstab | sed 's/\r$//')
 			if [[ ! $(echo "$bntest" | grep "by-name/system") = "" ]]; then
-				echo "$bntest" | grep "by-name/system" | gawk '{ print $1 }' | sed 's/\/system//' > $deviceloc/superr_byname2
+				echo "$bntest" | grep "by-name/system" | gawk '{ print $1 }' | sed 's/\/system//' > "$deviceloc/superr_byname2"
 			elif [[ ! $(echo "$bntest" | grep "by-name/SYSTEM") = "" ]]; then
-				echo "$bntest" | grep "by-name/SYSTEM" | gawk '{ print $1 }' | sed 's/\/SYSTEM//' > $deviceloc/superr_byname2
-				touch $deviceloc/superr_capbyname
+				echo "$bntest" | grep "by-name/SYSTEM" | gawk '{ print $1 }' | sed 's/\/SYSTEM//' > "$deviceloc/superr_byname2"
+				touch "$deviceloc/superr_capbyname"
 			elif [[ ! $(echo "$bntest" | grep "by-name/APP") = "" ]]; then
-				echo "$bntest" | grep "by-name/APP" | gawk '{ print $1 }' | sed 's/\/APP//' > $deviceloc/superr_byname2
-				touch $deviceloc/superr_appbyname
+				echo "$bntest" | grep "by-name/APP" | gawk '{ print $1 }' | sed 's/\/APP//' > "$deviceloc/superr_byname2"
+				touch "$deviceloc/superr_appbyname"
 			elif [[ ! $(echo "$bntest" | grep "by-name/userdata") = "" ]]; then
-				echo "$bntest" | grep "by-name/userdata" | gawk '{ print $1 }' | sed 's/\/userdata//' > $deviceloc/superr_byname2
+				echo "$bntest" | grep "by-name/userdata" | gawk '{ print $1 }' | sed 's/\/userdata//' > "$deviceloc/superr_byname2"
 			fi
-			sed -i 's:/:\\/:g' $deviceloc/superr_byname2
-			mv $deviceloc/superr_byname2 $deviceloc/superr_byname
-			byname=$(cat $deviceloc/superr_byname)
+			sed -i 's:/:\\/:g' "$deviceloc/superr_byname2"
+			mv "$deviceloc/superr_byname2" "$deviceloc/superr_byname"
+			byname=$(cat "$deviceloc/superr_byname")
 			rm -rf $prfiles/permtype_old
 			${usesudo}rm -rf $romdir/bootimg $romdir/recoveryimg
 			if [[ $byname = "" ]]; then
@@ -4081,7 +4080,7 @@ get_byname() {
 				echo "$t_byname_try_recovery$normal"
 				echo ""
 				read -p "$t_enter_continue"
-				rm -rf $deviceloc/superr_byname
+				rm -rf "$deviceloc/superr_byname"
 				get_byname
 				return 1
 			fi
@@ -4105,9 +4104,9 @@ get_byname() {
 				get_byname
 				return 1
 			else
-				echo "$byname2" > $deviceloc/superr_byname
-				sed -i 's:/:\\/:g' $deviceloc/superr_byname
-				byname=$(cat $deviceloc/superr_byname)
+				echo "$byname2" > "$deviceloc/superr_byname"
+				sed -i 's:/:\\/:g' "$deviceloc/superr_byname"
+				byname=$(cat "$deviceloc/superr_byname")
 				rm -rf $prfiles/permtype_old
 			fi
 		fi
@@ -4118,6 +4117,7 @@ get_byname() {
 			if [[ ! -d $romdir/recoveryimg/ramdisk ]]; then
 				if [[ -f $romdir/recovery.img ]]; then
 					bootext="1"
+					chosenimg2="recovery.img"
 					chosenimg="recovery"
 					boot_unpack
 				else
@@ -4134,19 +4134,24 @@ get_byname() {
 			findfstab
 			mmctest=$(${usesudo}grep -v "^#" $fstab | sed 's/\r$//')
 			echo -e "system\nboot\ndata\ncache\nrecovery\nmodem\nvendor" | while read line; do
-				if [[ $(echo "$mmctest" | grep "$line") = "" ]]; then
+				if [[ ! $(echo "$mmctest" | grep "$line") ]]; then
 					continue
 				fi
-				if [[ ! $(echo "$mmctest" | grep "$line" | gawk '{ print $1 }' | grep mmcb) = "" && ! $(echo "$mmctest" | grep "$line" | gawk '{ print $2 }' | grep "$line") = "" ]]; then
+				mmc2="/$line"
+				if [[ $(echo "$mmctest" | grep "$line" | gawk '{ print $1 }' | grep "/dev/") && $(echo "$mmctest" | grep "$line" | gawk '{ print $2 }' | grep "$line") ]]; then
 					mmc1=$(echo "$mmctest" | grep "$line" | gawk '{print $1}')
-					mmc2=$(echo "$mmctest" | grep "$line" | gawk '{print $2}')
-				elif [[ ! $(echo "$mmctest" | grep "$line" | gawk '{ print $3 }' | grep mmcb) = "" && ! $(echo "$mmctest" | grep "$line" | gawk '{ print $1 }' | grep "$line") = "" ]]; then
+				elif [[ $(echo "$mmctest" | grep "$line" | gawk '{ print $3 }' | grep "/dev/") && $(echo "$mmctest" | grep "$line" | gawk '{ print $1 }' | grep "$line") ]]; then
 					mmc1=$(echo "$mmctest" | grep "$line" | gawk '{print $3}')
-					mmc2=$(echo "$mmctest" | grep "$line" | gawk '{print $1}')
+				elif [[ $(echo "$mmctest" | grep "$line" | gawk '{ print $1 }' | grep "$mmc2") ]]; then
+					mmc1=$(echo "$mmctest" | grep "$line" | gawk '{print $2}')
+				elif [[ $(echo "$mmctest" | grep "$line" | gawk '{ print $2 }' | grep "$mmc2") ]]; then
+					mmc1=$(echo "$mmctest" | grep "$line" | gawk '{print $1}')
+				else
+					continue
 				fi
-				echo "$mmc1 $mmc2" | sed 's:/:\\/:g' >> $deviceloc/superr_mmc
+				echo "$mmc1 $mmc2" | sed 's:/:\\/:g' >> "$deviceloc/superr_mmc"
 			done
-			if [[ ! -s $deviceloc/superr_mmc ]]; then
+			if [[ ! -s "$deviceloc/superr_mmc" ]]; then
 				banner
 				echo "$redb$yellowt$t_error$normal"
 				echo "$redt$t_byname_no_mmc$normal"
@@ -4155,12 +4160,12 @@ get_byname() {
 				get_byname
 				return 1
 			fi
-			rm -rf $romdir/recoveryimg
-			if [[ -s $deviceloc/superr_mmc ]]; then
-				echo "mmc" > $deviceloc/superr_byname
-				byname=$(cat $deviceloc/superr_byname)
+			${usesudo}rm -rf $romdir/recoveryimg
+			if [[ -s "$deviceloc/superr_mmc" ]]; then
+				echo "mmc" > "$deviceloc/superr_byname"
+				byname=$(cat "$deviceloc/superr_byname")
 			else
-				rm -rf $deviceloc/superr_mmc
+				rm -rf "$deviceloc/superr_mmc"
 				banner
 				echo "$redb$yellowt$t_error$normal"
 				echo "$redt$t_byname_recovery_fail"
@@ -4172,7 +4177,7 @@ get_byname() {
 			fi
 		fi
 	else
-		byname=$(cat $deviceloc/superr_byname)
+		byname=$(cat "$deviceloc/superr_byname")
 	fi
 }
 get_contexts() {
@@ -4227,18 +4232,18 @@ get_devicename() {
 		fi
 		while read x; do
 			if [[ $(grep "$x=" $i) ]]; then
-				devicename=$(grep -m 1 "$x=" $i | cut -d"=" -f2)
+				devicename="$(grep -m 1 "$x=" $i | cut -d"=" -f2)"
 				devicechk="$x"
 				break
 			fi
 		done <<< "$(echo -e "ro.product.device\nro.build.product\nro.product.name")"
 	done <<< "$(echo -e "$sysdir/build.prop\n$romdir/build.prop")"
-	if [[ ! $devicename ]]; then
+	if [[ ! "$devicename" ]]; then
 		while read i; do
 			if [[ ! -f $i ]]; then
 				continue
 			fi
-			devicename=$(grep -m 1 "ro.build.description=" $i | cut -d"=" -f2 | cut -d'-' -f1)
+			devicename=$(grep -m 1 "ro.build.description=" $i | cut -d"=" -f2 | cut -d'-' -f1 | sed 's/\ /_/g')
 			devicechk="ro.product.device"
 			break
 		done <<< "$(echo -e "$sysdir/build.prop\n$romdir/build.prop")"
@@ -5221,21 +5226,21 @@ partadd() {
 	permtype=$(cat $prfiles/permtype)
 	needpart=""
 	partbyname=""
-	if [[ -f $deviceloc/superr_mmc && $(grep "$whatimg" $deviceloc/superr_mmc) != "" ]]; then
-		partbyname=$(grep "$whatimg" $deviceloc/superr_mmc | gawk '{ print $1 }')
+	if [[ -f "$deviceloc/superr_mmc" && $(grep "$whatimg" "$deviceloc/superr_mmc") ]]; then
+		partbyname=$(grep "$whatimg" "$deviceloc/superr_mmc" | gawk '{ print $1 }')
 	elif [[ -s $deviceloc/superr_byname ]]; then
 		if [[ $whatimg = "vendor" ]]; then
-			if [[ -f $deviceloc/superr_capbyname ]]; then
+			if [[ -f "$deviceloc/superr_capbyname" ]]; then
 				partbyname="\/VENDOR"
-			elif [[ -f $deviceloc/superr_appbyname ]]; then
+			elif [[ -f "$deviceloc/superr_appbyname" ]]; then
 				partbyname="\/VNR"
 			else
 				partbyname="\/vendor"
 			fi
 		elif [[ $whatimg = "data" ]]; then
-			if [[ -f $deviceloc/superr_capbyname ]]; then
+			if [[ -f "$deviceloc/superr_capbyname" ]]; then
 				partbyname="\/USERDATA"
-			elif [[ -f $deviceloc/superr_appbyname ]]; then
+			elif [[ -f "$deviceloc/superr_appbyname" ]]; then
 				partbyname="\/UDA"
 			else
 				partbyname="\/userdata"
@@ -5428,9 +5433,9 @@ partimg() {
 	fi
 }
 part_setup() {
-	if [[ -f $deviceloc/superr_mmc ]]; then
-		if [[ $(grep "$chosenimg" $deviceloc/superr_mmc) != "" ]]; then
-			mmcchosen=$(grep "$chosenimg" $deviceloc/superr_mmc | gawk '{ print $1 }')
+	if [[ -f "$deviceloc/superr_mmc" ]]; then
+		if [[ $(grep "$chosenimg" "$deviceloc/superr_mmc") != "" ]]; then
+			mmcchosen=$(grep "$chosenimg" "$deviceloc/superr_mmc" | gawk '{ print $1 }')
 			sed -i "s:file_getprop(\"\/tmp\/config\",\ \"byname\")\ +\ \"\/$chosenimg\"\ +\ file_getprop(\"\/tmp\/config\",\ \"slotnum\"):\"$mmcchosen\":g" $usdir/updater-script
 		else
 			if [[ $chosenimg = 'boot' && -f $romdir/system/init.rc ]]; then
@@ -5445,14 +5450,14 @@ part_setup() {
 				read -p "$t_enter_continue"
 			fi
 		fi
-		mmcsystem=$(grep "system" $deviceloc/superr_mmc | gawk '{ print $1 }')
+		mmcsystem=$(grep "system" "$deviceloc/superr_mmc" | gawk '{ print $1 }')
 		sed -i "s:file_getprop(\"\/tmp\/config\",\ \"byname\")\ +\ \"\/system\"\ +\ file_getprop(\"\/tmp\/config\",\ \"slotnum\"):\"$mmcsystem\":g" $usdir/updater-script
 	else
-		if [[ -f $deviceloc/superr_capbyname ]]; then
+		if [[ -f "$deviceloc/superr_capbyname" ]]; then
 			sed -i "s/+\ \"\/system\"\ +/+\ \"\/SYSTEM\"\ +/g" $usdir/updater-script
 			sed -i "s/+\ \"\/boot\"\ +/+\ \"\/BOOT\"\ +/g" $usdir/updater-script
 			sed -i "s/+\ \"\/recovery\"\ +/+\ \"\/RECOVERY\"\ +/g" $usdir/updater-script
-		elif [[ -f $deviceloc/superr_appbyname ]]; then
+		elif [[ -f "$deviceloc/superr_appbyname" ]]; then
 			sed -i "s/+\ \"\/system\"\ +/+\ \"\/APP\"\ +/g" $usdir/updater-script
 			sed -i "s/+\ \"\/boot\"\ +/+\ \"\/LNX\"\ +/g" $usdir/updater-script
 			sed -i "s/+\ \"\/recovery\"\ +/+\ \"\/SOS\"\ +/g" $usdir/updater-script
@@ -5508,8 +5513,8 @@ pullimga() {
 	banner
 	echo "$bluet$t_general_extracting $pullimg ...$normal"
 	echo ""
-	if [[ -f $base/tools/devices/$devicename/superr_mmc ]]; then
-		partbyname=$(grep "$pullimg" $base/tools/devices/$devicename/superr_mmc | gawk '{ print $1 }' | sed 's/\\//g')
+	if [[ -f "$base/tools/devices/$devicename/superr_mmc" ]]; then
+		partbyname=$(grep "$pullimg" "$base/tools/devices/$devicename/superr_mmc" | gawk '{ print $1 }' | sed 's/\\//g')
 	else
 		partbyname="$byname/$pullimg"
 	fi
@@ -5522,8 +5527,8 @@ pullimgr() {
 	banner
 	echo "$bluet$t_general_extracting $pullimg ...$normal"
 	echo ""
-	if [[ -f $base/tools/devices/$devicename/superr_mmc ]]; then
-		partbyname=$(grep "$pullimg" $base/tools/devices/$devicename/superr_mmc | gawk '{ print $1 }' | sed 's/\\//g')
+	if [[ -f "$base/tools/devices/$devicename/superr_mmc" ]]; then
+		partbyname=$(grep "$pullimg" "$base/tools/devices/$devicename/superr_mmc" | gawk '{ print $1 }' | sed 's/\\//g')
 		mmcname=$(echo "$partbyname" | rev | cut -d"/" -f1 | rev)
 		$adb pull $partbyname $pullimg.img
 	else
@@ -6274,10 +6279,11 @@ update_project() {
 		chosenimg="boot"
 		part_setup
 	fi
+	devname1=$(echo "$devicename" | sed 's/\ /\\ /g')
 	if [[ ! -f assert ]]; then
 		cat $tools/updater/custom/assert >> assert
 		cat $tools/updater/custom/abort >> assert
-		sed -i "s/#DEVICENAME/$devicename/g" assert
+		sed -i "s/#DEVICENAME/$devname1/g" assert
 		sed -i "s/#DEVICECHK/$devicechk/g" assert
 		if [[ -f assertcustom ]]; then
 			grep "ro.product.device" assert > assert-2
@@ -6289,7 +6295,7 @@ update_project() {
 		sed -i '/#ASSERT/ r assert' $usdir/updater-script
 	fi
 	sed -i "s/#SIGNATURE/$signature1/g" $usdir/updater-script
-	sed -i "s/#DEVICENAME/$devicename/g" $usdir/updater-script
+	sed -i "s/#DEVICENAME/$devname1/g" $usdir/updater-script
 	sed -i "s/#DEVICECHK/$devicechk/g" $usdir/updater-script
 	sed -i '/#SYM/ r symlinks' $usdir/updater-script
 	sed -i "/#PERM/ r $permtype" $usdir/updater-script
@@ -6608,12 +6614,12 @@ if [[ -f $sysdir/build.prop ]]; then
 	androidversion=$(grep "ro.build.version.release" $sysdir/build.prop | cut -d"=" -f2)
 	api=$(grep "ro.build.version.sdk" $sysdir/build.prop | cut -d"=" -f2)
 	get_devicename
-	mkdir -p $base/tools/devices/$devicename
+	mkdir -p "$base/tools/devices/$devicename"
 	deviceloc=""
-	deviceloc=$base/tools/devices/$devicename
+	deviceloc="$base/tools/devices/$devicename"
 	if [[ -d $base/tools/devices/tmp_device ]]; then
 		cd $base/tools/devices/tmp_device
-		mv * $deviceloc
+		mv * "$deviceloc"
 		rm -rf $base/tools/devices/tmp_device
 		cd $base
 	fi
