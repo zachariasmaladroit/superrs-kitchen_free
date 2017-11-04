@@ -4243,7 +4243,7 @@ get_devicename() {
 			if [[ ! -f $i ]]; then
 				continue
 			fi
-			devicename=$(grep -m 1 "ro.build.description=" $i | cut -d"=" -f2 | cut -d'-' -f1 | sed 's/\ /_/g')
+			devicename=$(grep -m 1 "ro.build.description=" $i | cut -d"=" -f2 | cut -d'-' -f1)
 			devicechk="ro.product.device"
 			break
 		done <<< "$(echo -e "$sysdir/build.prop\n$romdir/build.prop")"
