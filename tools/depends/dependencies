@@ -29,6 +29,7 @@ mount
 mv
 paste
 perl
+pgrep
 rev
 rm
 sed
@@ -37,11 +38,13 @@ stat
 strings
 sudo
 tar
+tee
 touch
 tput
 tr
 umount
 uname
+unzip
 wc
 wget
 whoami

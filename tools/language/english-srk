@@ -215,7 +215,7 @@ export t_menu_zip_devices="Zip new devices to share"
 export t_menu_language="Reset language"
 export t_menu_heapsize="Heapsize Menu"
 export t_menu_support="Support: Create zip to send"
-export t_menu_reset="Update all tools"
+export t_menu_reset="Reset all tools"
 export t_menu_binaries="Update binaries"
 export t_support_create="Creating support.zip ..."
 export t_support_finish="Support zip has been created in your project directory"
@@ -484,6 +484,7 @@ export t_update_no_internet="The Kitchen could not detect an internet connection
 export t_update_fail="There was a problem updating. If you modified\nany kitchen files other than your project, you\ncan either revert the changes and try again\nor do a fresh clone of the kitchen."
 export t_update_q="Would you like to update now?  y/n  "
 export t_update_auto_q="Do you want to check for updates when the kitchen starts?  y/n  "
+export t_restart="The kitchen needs to restart"
 
 # New Project
 export t_new_q="Enter new project name (${yellowt}spaces will be replaced with _$normal):"
