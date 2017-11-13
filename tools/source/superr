@@ -1733,7 +1733,7 @@ debinstall() {
 			debpkg=""
 			cd $base
 			banner
-			echo "$t_restart"
+			echo "${redt}$t_restart$normal"
 			echo ""
 			read -p "$t_enter_exit"
 			exit
@@ -4371,10 +4371,6 @@ imgextract() {
 				cd $romdir
 			fi
 			if [[ $extractimg = "system" || $extractimg = "vendor" ]]; then
-				getcap -r output > $prfiles/cap_temp
-				if [[ ! -f $prfiles/cap_temp ]]; then
-					touch $prfiles/cap_temp
-				fi
 				if [[ $extractimg = "system" ]]; then
 					if [[ -f output/init.rc && -d output/system/app ]]; then
 						find output/system/bin -type f 2>/dev/null | sed 's/^output/system/' > $prfiles/binblk
@@ -4410,18 +4406,8 @@ imgextract() {
 							echo "$line" >> $prfiles/$set_metadata1
 						fi
 					elif [[ -f $line2 ]]; then
-						if [[ $(grep "$line2 =" $prfiles/cap_temp) ]]; then
-							caps=$(grep "$line2 =" $prfiles/cap_temp | cut -d' ' -f3)
-							captest=$(echo "$caps" | cut -d'+' -f1 | tr ',' ' ')
-							for a in $(echo "$captest"); do
-								capint=$(grep "$a" $tools/updater/cap_def | gawk '{print $2}')
-								cappower1=$(echo "2^$capint" | bc)
-								echo "$cappower1" >> $prfiles/cap_test
-							done
-							cappower=$(cat $prfiles/cap_test | paste -sd+ - | bc)
-							caphex=$(echo "0x$(printf "%x\n" $cappower)")
-							rm -rf $prfiles/cap_test
-						else
+						caphex=$($tools/source/getcap.py $line2 h | cut -d' ' -f2)
+						if [[ ! $caphex ]]; then
 							caphex="0x0"
 						fi
 						filecon=$(ls -dZ $line2 | gawk '{print $1}')
@@ -4932,7 +4918,7 @@ kitchen_update() {
 	fi
 	cd $base
 	banner
-	echo "$t_restart"
+	echo "${redt}$t_restart$normal"
 	echo ""
 	read -p "$t_enter_exit"
 	exit
@@ -5107,7 +5093,7 @@ misc_tools() {
 			done
 			cd $base
 			banner
-			echo "$t_restart"
+			echo "${redt}$t_restart$normal"
 			echo ""
 			read -p "$t_enter_exit"
 			exit
@@ -6347,7 +6333,7 @@ if [[ $(uname -s | grep "CYGWIN\|cygwin\|Cygwin") ]]; then
 		touch $tools/cygnotice
 	fi
 	rm -rf $tools/depends/dependencies2
-	grep -v "getcap" $tools/depends/dependencies > $tools/depends/dependencies2
+	cp $tools/depends/dependencies $tools/depends/dependencies2
 	sed -i '/sudo/d; 1i7z\ngit' $tools/depends/dependencies2
 	dependencies="dependencies2"
 	cyg=".exe"
@@ -6369,7 +6355,7 @@ elif [[ $(find /mnt/c -name Windows -maxdepth 1 2>/dev/null | grep -m 1 -o Windo
 		exit
 	fi
 	rm -rf $tools/depends/dependencies2
-	grep -v "getcap" $tools/depends/dependencies > $tools/depends/dependencies2
+	cp $tools/depends/dependencies $tools/depends/dependencies2
 	sed -i '1i7z' $tools/depends/dependencies2
 	dependencies="dependencies2"
 	cyg=""

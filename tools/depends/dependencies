@@ -1,6 +1,5 @@
 ar
 basename
-bc
 cat
 chown
 cp
@@ -14,7 +13,6 @@ echo
 find
 gawk
 gcc
-getcap
 grep
 gunzip
 gzip
@@ -30,6 +28,8 @@ mv
 paste
 perl
 pgrep
+python2
+python3
 rev
 rm
 sed
