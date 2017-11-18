@@ -21,7 +21,6 @@ mount("ext4", "EMMC", file_getprop("/tmp/config", "byname") + "/system" + file_g
 package_extract_dir("install", "/tmp/install");
 set_metadata_recursive("/tmp/install", "uid", 0, "gid", 0, "dmode", 0755, "fmode", 0644);
 set_metadata_recursive("/tmp/install/bin", "uid", 0, "gid", 0, "dmode", 0755, "fmode", 0755);
-mount("ext4", "EMMC", file_getprop("/tmp/config", "byname") + "/system" + file_getprop("/tmp/config", "slotnum"), "/system");
 run_program("/tmp/install/bin/backuptool.sh", "backup");
 unmount("/system");
 show_progress(0.750000, 0);
