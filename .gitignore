@@ -28,6 +28,7 @@
 !/tools/devices/a5xelte
 !/tools/devices/ada
 !/tools/devices/angler
+!/tools/devices/Aqua\ Air
 !/tools/devices/Aquaris_E5_HD
 !/tools/devices/bullhead
 !/tools/devices/C6603
@@ -35,12 +36,16 @@
 !/tools/devices/cm_osprey
 !/tools/devices/cprimeltemtr
 !/tools/devices/D6503
+!/tools/devices/dream2lte
+!/tools/devices/dreamlte
 !/tools/devices/falcon_cdma
 !/tools/devices/flounder
+!/tools/devices/gracelte
 !/tools/devices/grandprimevelte
-!/tools/devices/gts28vewifi
 !/tools/devices/gts210vewifi
+!/tools/devices/gts28vewifi
 !/tools/devices/hammerhead
+!/tools/devices/hero2lte
 !/tools/devices/hero2qltevzw
 !/tools/devices/herolte
 !/tools/devices/hi6210sft
@@ -61,6 +66,8 @@
 !/tools/devices/klteusc
 !/tools/devices/le_x2
 !/tools/devices/Lion-5
+!/tools/devices/marlin
+!/tools/devices/mido
 !/tools/devices/msm8916_32
 !/tools/devices/noblelte
 !/tools/devices/nobleltetmo

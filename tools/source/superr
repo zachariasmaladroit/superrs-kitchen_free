@@ -5,7 +5,7 @@
 banner() {
 	echo "$clears"
 	echo "------------------------------------------------------"
-	echo "$bold$stand                   SuperR's Kitchen                   $normal"
+	echo "$bold$stand                 SuperR's Kitchen Free                $normal"
 	echo "$italic$stand                       by SuperR                      $normal"
 	echo "------------------------------------------------------"
 	echo ""
@@ -5971,7 +5971,7 @@ update_project() {
 		cd $romdir
 		romdir2=$(echo "$romdir" | sed 's:\/:\\/:g')
 		find $sysdir $romdir/vendor 2>/dev/null | sed "s/$romdir2//g" | sort > $prfiles/all_files.txt
-		if [[ $permtype && ! $permtype = "sparse_dat" && ! $permtype = "raw_img" ]]; then
+		if [[ $permtype && $permtype != "sparse_dat" && $permtype != "raw_img" ]]; then
 			cd $usdir
 			permtype=""
 			if [[ ! -f $prfiles/permtype ]]; then
