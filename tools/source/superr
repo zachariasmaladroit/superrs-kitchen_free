@@ -3458,7 +3458,7 @@ extract_new() {
 			elif [[ $($p7z l $romzip | grep chunk | grep -v ".*\.so$") ]]; then
 				banner
 				echo "$bluet$t_extract_chunk$normal"
-				$p7z e $romzip *chunk* boot.img 2>/dev/null >> $logs/zip.log
+				$p7z e $romzip *system*chunk* boot.img */*system*chunk* */boot.img 2>/dev/null >> $logs/zip.log
 				romzip=""
 				romchunk=$(ls | grep chunk)
 			fi
@@ -3508,14 +3508,16 @@ extract_new() {
 			banner
 			echo "$bluet$t_extract_convert_chunk$normal"
 			if [[ $(echo "$romchunk" | grep "sparsechunk") ]]; then
-				$simg2img *chunk* system.img.raw
-				offset=$(LANG=C grep -aobP -m1 '\x53\xEF' system.img.raw | head -1 | gawk '{print $1 - 1080}')
-				( dd if=system.img.raw of=system.img ibs=$offset skip=1 2>&1 ) > $logs/main.log
+				$simg2img *chunk* system.img.raw >> $logs/main.log
+				rm -rf *chunk*
+				banner
+				echo "$bluet$t_extract_fix_img$normal"
+				$tools/source/fixmoto.py system.img.raw system.img >> $logs/main.log
 				rm -rf system.img.raw
 			else
 				$simg2img *chunk* system.img
+				rm -rf *chunk*
 			fi
-			rm -rf *chunk*
 			romimg="system.img"
 		fi
 		if [[ $romwin && $(echo $romwin | grep "system_img\|system.img\|systemimg") ]]; then
@@ -3619,7 +3621,7 @@ extract_new() {
 			fi
 		fi
 		if [[ $romtar ]]; then
-			if [[ ! $(tar --numeric-owner -tvf $romtar 2>&1 | gawk '{ print $2, $6 }' | grep -m 1 "/bin" | gawk '{ print $1 }') = "0/2000" ]]; then
+			if [[ $(tar --numeric-owner -tvf $romtar 2>&1 | gawk '{ print $2, $6 }' | grep -m 1 "/bin" | gawk '{ print $1 }') != "0/2000" ]]; then
 				banner
 				echo "$redb$yellowt$bold$t_error$normal"
 				echo "$redt$t_extract_tar_fail$normal"
