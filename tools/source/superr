@@ -133,14 +133,16 @@ assert_devices() {
 	done
 }
 boot_dmverity() {
-	banner
-	echo "${bluet}Removing dm-verity ...$normal"
-	vtmp=",verify=${byname}\/metadata verify=${byname} ,verify verify"
-	for i in $vtmp; do
-		if [[ $(${usesudo}grep "$i" $fstab) ]]; then
-			${usesudo}sed -i "s/$i//g" $fstab
-		fi
-	done
+	if [[ $fstab != 1 && -f "$fstab" ]]; then
+		banner
+		echo "${bluet}Removing dm-verity from ramdisk ...$normal"
+		${usesudo}$tools/source/rmverity.py $fstab >> $logs/main.log
+	fi
+	if [[ -f $romdir/${chosenimg}img/split_img/${chosenimg}.img-zImage ]]; then
+		banner
+		echo "${bluet}Removing dm-verity from dtb ...$normal"
+		${usesudo}$tools/source/rmverity.py $romdir/${chosenimg}img/split_img/${chosenimg}.img-zImage >> $logs/main.log
+	fi
 }
 boot_forcee() {
 	if [[ $forceestatus = "Yes" ]]; then
@@ -162,7 +164,7 @@ boot_forcee() {
 		echo "$greent$t_boot_forsee_rem$normal"
 		echo ""
 		read -p "$t_enter_boot_menu"
-	else
+	elif [[ $forceestatus = "No" ]]; then
 		banner
 		read -n 1 -p "$t_boot_forcee_add_ask" reply
 		if [[ ! $reply = "y" ]]; then
@@ -214,7 +216,7 @@ boot_initd() {
 		echo ""
 		read -p "$t_enter_boot_menu"
 		return
-	else
+	elif [[ $initdstatus = "Yes" ]]; then
 		banner
 		echo "$greent$t_boot_already_initd$normal"
 		echo ""
@@ -286,7 +288,7 @@ boot_insecure() {
 		echo ""
 		read -p "$t_enter_boot_menu"
 		return
-	else
+	elif [[ $insecurestatus = "Yes" ]]; then
 		banner
 		echo "$greent$t_boot_already_insecure$normal"
 		echo ""
@@ -528,15 +530,15 @@ boot_tools() {
 					continue
 				elif [[ $choice = "4" ]]; then # START Remove dm-verity
 					findfstab
-					if [[ ! $(${usesudo}grep "verify" $fstab) ]]; then
-						banner
-						echo "${redb}${yellowt}${bold}$t_notice$normal"
-						echo "$redt$t_boot_already_dmverity$normal"
-						echo ""
-						read -p "$t_enter_boot_menu"
-						choice=""
-						continue
-					fi
+					# if [[ ! $(${usesudo}grep "verify" $fstab) ]]; then
+					# 	banner
+					# 	echo "${redb}${yellowt}${bold}$t_notice$normal"
+					# 	echo "$redt$t_boot_already_dmverity$normal"
+					# 	echo ""
+					# 	read -p "$t_enter_boot_menu"
+					# 	choice=""
+					# 	continue
+					# fi
 					boot_dmverity
 					banner
 					echo "$greent$t_boot_dmverity_rem$normal"
@@ -575,14 +577,17 @@ boot_tools() {
 				fi
 				echo "2) $t_menu_boot_flashable $chosenimg"
 				if [[ $countimg -gt "1" ]]; then
+					ccount=3
 					echo "3) $t_menu_switch_boot"
+				else
+					ccount=2
 				fi
 				echo "${yellowt}m = $t_title_main"
 				echo "${magentat}q = $t_menu_quit$normal"
 				echo ""
 				read -n 1 -p "$t_select" choice
 
-				if [[ ! ${choice} =~ ^[1-3]$ ]] && [[ ! $choice = "m" && ! $choice = "q" ]]; then
+				if [[ ! ${choice} =~ ^[1-$ccount]$ ]] && [[ ! $choice = "m" && ! $choice = "q" ]]; then
 					choice=""
 					continue
 				elif [[ $choice = "m" ]]; then # START Main menu
@@ -3776,8 +3781,8 @@ findfstab() {
 			done
 		fi
 	else
-		fstab="error"
-		echo "ERROR: Could not find fstab" >> $logs/boot.log
+		fstab=1
+		echo "NOTICE: No fstab in ramdisk" >> $logs/boot.log
 	fi
 }
 findimgsize() {
@@ -4004,22 +4009,24 @@ get_byname() {
 				cd $romdir/${chosenimg}img/ramdisk
 			fi
 			findfstab
-			bntest=$(${usesudo}grep -v "^#" $fstab | sed 's/\r$//')
-			if [[ $(echo "$bntest" | grep "by-name/system") ]]; then
-				echo "$bntest" | grep "by-name/system" | gawk '{ print $1 }' | sed 's/\/system//' > "$deviceloc/superr_byname2"
-			elif [[ $(echo "$bntest" | grep "by-name/SYSTEM") ]]; then
-				echo "$bntest" | grep "by-name/SYSTEM" | gawk '{ print $1 }' | sed 's/\/SYSTEM//' > "$deviceloc/superr_byname2"
-				touch "$deviceloc/superr_capbyname"
-			elif [[ $(echo "$bntest" | grep "by-name/APP") ]]; then
-				echo "$bntest" | grep "by-name/APP" | gawk '{ print $1 }' | sed 's/\/APP//' > "$deviceloc/superr_byname2"
-				touch "$deviceloc/superr_appbyname"
-			elif [[ $(echo "$bntest" | grep "by-name/userdata") ]]; then
-				echo "$bntest" | grep "by-name/userdata" | gawk '{ print $1 }' | sed 's/\/userdata//' > "$deviceloc/superr_byname2"
+			if [[ $fstab != 1 ]]; then
+				bntest=$(${usesudo}grep -v "^#" $fstab | sed 's/\r$//')
+				if [[ $(echo "$bntest" | grep "by-name/system") ]]; then
+					echo "$bntest" | grep "by-name/system" | gawk '{ print $1 }' | sed 's/\/system//' > "$deviceloc/superr_byname2"
+				elif [[ $(echo "$bntest" | grep "by-name/SYSTEM") ]]; then
+					echo "$bntest" | grep "by-name/SYSTEM" | gawk '{ print $1 }' | sed 's/\/SYSTEM//' > "$deviceloc/superr_byname2"
+					touch "$deviceloc/superr_capbyname"
+				elif [[ $(echo "$bntest" | grep "by-name/APP") ]]; then
+					echo "$bntest" | grep "by-name/APP" | gawk '{ print $1 }' | sed 's/\/APP//' > "$deviceloc/superr_byname2"
+					touch "$deviceloc/superr_appbyname"
+				elif [[ $(echo "$bntest" | grep "by-name/userdata") ]]; then
+					echo "$bntest" | grep "by-name/userdata" | gawk '{ print $1 }' | sed 's/\/userdata//' > "$deviceloc/superr_byname2"
+				fi
+				sed -i 's:/:\\/:g' "$deviceloc/superr_byname2"
+				mv "$deviceloc/superr_byname2" "$deviceloc/superr_byname"
+				byname=$(cat "$deviceloc/superr_byname")
+				rm -rf $prfiles/permtype_old
 			fi
-			sed -i 's:/:\\/:g' "$deviceloc/superr_byname2"
-			mv "$deviceloc/superr_byname2" "$deviceloc/superr_byname"
-			byname=$(cat "$deviceloc/superr_byname")
-			rm -rf $prfiles/permtype_old
 			${usesudo}rm -rf $romdir/bootimg $romdir/recoveryimg
 			if [[ ! $byname ]]; then
 				banner
@@ -4076,25 +4083,27 @@ get_byname() {
 			fi
 			cd $romdir/recoveryimg/ramdisk/etc
 			findfstab
-			mmctest=$(${usesudo}grep -v "^#" $fstab | sed 's/\r$//')
-			echo -e "system\nboot\ndata\ncache\nrecovery\nmodem\nvendor" | while read line; do
-				if [[ ! $(echo "$mmctest" | grep "$line") ]]; then
-					continue
-				fi
-				mmc2="/$line"
-				if [[ $(echo "$mmctest" | grep "$line" | gawk '{ print $1 }' | grep "/dev/") && $(echo "$mmctest" | grep "$line" | gawk '{ print $2 }' | grep "$line") ]]; then
-					mmc1=$(echo "$mmctest" | grep "$line" | gawk '{print $1}')
-				elif [[ $(echo "$mmctest" | grep "$line" | gawk '{ print $3 }' | grep "/dev/") && $(echo "$mmctest" | grep "$line" | gawk '{ print $1 }' | grep "$line") ]]; then
-					mmc1=$(echo "$mmctest" | grep "$line" | gawk '{print $3}')
-				elif [[ $(echo "$mmctest" | grep "$line" | gawk '{ print $1 }' | grep "$mmc2") ]]; then
-					mmc1=$(echo "$mmctest" | grep "$line" | gawk '{print $2}')
-				elif [[ $(echo "$mmctest" | grep "$line" | gawk '{ print $2 }' | grep "$mmc2") ]]; then
-					mmc1=$(echo "$mmctest" | grep "$line" | gawk '{print $1}')
-				else
-					continue
-				fi
-				echo "$mmc1 $mmc2" | sed 's:/:\\/:g' >> "$deviceloc/superr_mmc"
-			done
+			if [[ $fstab != 1 ]]; then
+				mmctest=$(${usesudo}grep -v "^#" $fstab | sed 's/\r$//')
+				echo -e "system\nboot\ndata\ncache\nrecovery\nmodem\nvendor" | while read line; do
+					if [[ ! $(echo "$mmctest" | grep "$line") ]]; then
+						continue
+					fi
+					mmc2="/$line"
+					if [[ $(echo "$mmctest" | grep "$line" | gawk '{ print $1 }' | grep "/dev/") && $(echo "$mmctest" | grep "$line" | gawk '{ print $2 }' | grep "$line") ]]; then
+						mmc1=$(echo "$mmctest" | grep "$line" | gawk '{print $1}')
+					elif [[ $(echo "$mmctest" | grep "$line" | gawk '{ print $3 }' | grep "/dev/") && $(echo "$mmctest" | grep "$line" | gawk '{ print $1 }' | grep "$line") ]]; then
+						mmc1=$(echo "$mmctest" | grep "$line" | gawk '{print $3}')
+					elif [[ $(echo "$mmctest" | grep "$line" | gawk '{ print $1 }' | grep "$mmc2") ]]; then
+						mmc1=$(echo "$mmctest" | grep "$line" | gawk '{print $2}')
+					elif [[ $(echo "$mmctest" | grep "$line" | gawk '{ print $2 }' | grep "$mmc2") ]]; then
+						mmc1=$(echo "$mmctest" | grep "$line" | gawk '{print $1}')
+					else
+						continue
+					fi
+					echo "$mmc1 $mmc2" | sed 's:/:\\/:g' >> "$deviceloc/superr_mmc"
+				done
+			fi
 			if [[ ! -s "$deviceloc/superr_mmc" ]]; then
 				banner
 				echo "$redb$yellowt$t_error$normal"
@@ -4587,12 +4596,22 @@ isdmverity() {
 		return 1
 	fi
 	findfstab
-	if [[ $(${usesudo}grep "verify" $fstab) ]]; then
-		dmveritystatus="Yes"
-		dmveritystatus1="${redt}$t_enabled$normal"
+	if [[ $fstab != 1 ]]; then
+		if [[ $(${usesudo}grep "verify" $fstab) ]]; then
+			dmveritystatus="Yes"
+			dmveritystatus1="${redt}$t_enabled$normal"
+		else
+			dmveritystatus="No"
+			dmveritystatus1="${greent}$t_disabled$normal"
+		fi
 	else
-		dmveritystatus="No"
-		dmveritystatus1="${greent}$t_disabled$normal"
+		if [[ $($tools/source/rmverity.py $romdir/${chosenimg}img/split_img/${chosenimg}.img-zImage status) = "yes" ]]; then
+			dmveritystatus="Yes"
+			dmveritystatus1="${redt}$t_enabled$normal"
+		else
+			dmveritystatus="No"
+			dmveritystatus1="${greent}$t_disabled$normal"
+		fi
 	fi
 }
 isforcee() {
@@ -4604,12 +4623,17 @@ isforcee() {
 		return 1
 	fi
 	findfstab
-	if [[ $(${usesudo}grep "/data" $fstab | grep "forceencrypt\|forcefdeorfbe\|fileencryption") ]]; then
-		forceestatus="Yes"
-		forceestatus1="${redt}$t_enabled$normal"
+	if [[ $fstab != 1 ]]; then
+		if [[ $(${usesudo}grep "/data" $fstab | grep "forceencrypt\|forcefdeorfbe\|fileencryption") ]]; then
+			forceestatus="Yes"
+			forceestatus1="${redt}$t_enabled$normal"
+		else
+			forceestatus="No"
+			forceestatus1="${greent}$t_disabled$normal"
+		fi
 	else
-		forceestatus="No"
-		forceestatus1="${greent}$t_disabled$normal"
+		forceestatus="1"
+		forceestatus1="${redt}N/A$normal"
 	fi
 }
 isfullrom() {
@@ -4645,7 +4669,7 @@ isinitd() {
 		inittest=$(${usesudo}grep -r "init\.d" . | grep -v "lge_fota\|chargerlogo")
 	elif [[ -f $romdir/system/init.rc ]]; then
 		cd $romdir/system
-		inittest=''
+		inittest=""
 		find . -not -path "*system*" 2>/dev/null | while read line; do
 			inittest=$(grep "init\.d" $line 2>/dev/null)
 			if [[ $inittest != '' ]]; then
@@ -4653,7 +4677,9 @@ isinitd() {
 			fi
 		done
 	else
-		return 1
+		initdstatus="1"
+		initdstatus1="${redt}N/A$normal"
+		return
 	fi
 	if [[ $inittest ]]; then
 		initdstatus="Yes"
@@ -4667,7 +4693,9 @@ isinsecure() {
 	if [[ -f $dfprop ]]; then
 		insectest=$(${usesudo}grep "ro.secure=0" $dfprop)
 	else
-		return 1
+		insecurestatus="1"
+		insecurestatus1=$(echo "${redt}N/A$normal")
+		return
 	fi
 	if [[ ! $insectest ]]; then
 		insecurestatus="No"
