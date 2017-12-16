@@ -459,14 +459,24 @@ boot_tools() {
 				fi
 			fi
 			ramdir="$romdir/${chosenimg}img/ramdisk"
-			dfprop="$ramdir/default.prop"
+			if [[ -f $ramdir/default.prop ]] && [[ ! -L $ramdir/default.prop ]]; then
+				dfprop="$ramdir/default.prop"
+			elif [[ -f $romdir/system/etc/prop.default ]]; then
+				dfprop="$romdir/system/etc/prop.default"
+			elif [[ -f $romdir/vendor/default.prop ]]; then
+				dfprop="$romdir/vendor/default.prop"
+			fi
 		else
 			chosenimg="boot"
 			ramdir="$romdir/system"
-			if [[ -f $romdir/system/default.prop ]]; then
-				dfprop="$romdir/system/default.prop"
-			elif [[ -f $romdir/vendor/default.prop ]]; then
-				dfprop="$romdir/vendor/default.prop"
+			if [[ -L $ramdir/default.prop ]]; then
+				if [[ -f $romdir/system/etc/prop.default ]]; then
+					dfprop="$romdir/system/etc/prop.default"
+				else
+					dfprop="bad"
+				fi
+			else
+				dfprop="$ramdir/default.prop"
 			fi
 		fi
 		if [[ -d $romdir/${chosenimg}img || -f $romdir/system/init.rc ]]; then
@@ -3758,32 +3768,40 @@ extract_new() {
 	done
 }
 findfstab() {
-	fsdir="$romdir/bootimg/ramdisk $romdir/system $romdir/vendor/etc $romdir/recoveryimg/ramdisk/etc $romdir/system/vendor/etc"
-	for i in $fsdir; do
-		fstmp=$(${usesudo}find $i -maxdepth 1 ! -type l 2>/dev/null | grep fstab | grep -v "goldfish\|ranchu\|charger\|zram\|nodata\|\.fwup\|\.fota\|mofd_v1\|\.ftm\|\.sdboot" | sed 's/\.\///')
-		if [[ -e $fstmp ]]; then
+	fstab=""
+	dircur="$(pwd)"
+	fsdir="$romdir/system\n$romdir/bootimg/ramdisk\n$romdir/system/vendor/etc\n$romdir/vendor/etc\n$romdir/recoveryimg/ramdisk/etc"
+	while read i; do
+		if [[ $fstab ]]; then
 			break
 		fi
-	done
-	if [[ -e $fstmp ]]; then
-		for i in "$fstmp"; do
-			if [[ $(${usesudo}grep "/system" "$i" | grep -v "^#") ]]; then
-				fstab="$i"
-				break
-			fi
-		done
-		if [[ ! $fstab ]]; then
-			for i in "$fstmp"; do
-				if [[ $(${usesudo}grep "/data" "$i" | grep -v "^#") ]]; then
-					fstab="$i"
+		if [[ ! -d "$i" ]]; then
+			continue
+		fi
+		cd $i
+		fstmp=$(${usesudo}ls | grep "fstab" | grep -v "goldfish\|ranchu\|charger\|zram\|nodata\|\.fwup\|\.fota\|mofd_v1\|\.ftm\|\.sdboot")
+		if [[ $fstmp ]]; then
+			while read f; do
+				if [[ $(${usesudo}grep "/system" "$i/$f" | grep -v "^#") ]]; then
+					fstab="$i/$f"
 					break
 				fi
-			done
+			done <<< "$(echo "$fstmp")"
+			if [[ ! $fstab ]]; then
+				while read f; do
+					if [[ $(${usesudo}grep "/data" "$i/$f" | grep -v "^#") ]]; then
+						fstab="$i/$f"
+						break
+					fi
+				done <<< "$(echo "$fstmp")"
+			fi
 		fi
-	else
+	done <<< "$(echo -e "$fsdir")"
+	if [[ ! $fstab ]]; then
 		fstab=1
 		echo "NOTICE: No fstab in ramdisk" >> $logs/boot.log
 	fi
+	cd $dircur
 }
 findimgsize() {
 	choice=""
@@ -4596,23 +4614,18 @@ isdmverity() {
 		return 1
 	fi
 	findfstab
+	vdtb=$($tools/source/rmverity.py $romdir/${chosenimg}img/split_img/${chosenimg}.img-zImage status)
+	vfstab=""
 	if [[ $fstab != 1 ]]; then
-		if [[ $(${usesudo}grep "verify" $fstab) ]]; then
-			dmveritystatus="Yes"
-			dmveritystatus1="${redt}$t_enabled$normal"
-		else
-			dmveritystatus="No"
-			dmveritystatus1="${greent}$t_disabled$normal"
-		fi
-	else
-		if [[ $($tools/source/rmverity.py $romdir/${chosenimg}img/split_img/${chosenimg}.img-zImage status) = "yes" ]]; then
-			dmveritystatus="Yes"
-			dmveritystatus1="${redt}$t_enabled$normal"
-		else
-			dmveritystatus="No"
-			dmveritystatus1="${greent}$t_disabled$normal"
-		fi
+		vfstab=$(${usesudo}grep "verify" $fstab)
 	fi
+	if [[ $vdtb = "yes" || $vfstab ]]; then
+		dmveritystatus="Yes"
+		dmveritystatus1="${redt}$t_enabled$normal"
+	else
+		dmveritystatus="No"
+		dmveritystatus1="${greent}$t_disabled$normal"
+	fi		
 }
 isforcee() {
 	if [[ -d $romdir/bootimg/ramdisk ]]; then
@@ -4666,21 +4679,21 @@ isfullrom() {
 isinitd() {
 	if [[ -d $romdir/bootimg/ramdisk ]]; then
 		cd $romdir/bootimg/ramdisk
-		inittest=$(${usesudo}grep -r "init\.d" . | grep -v "lge_fota\|chargerlogo")
 	elif [[ -f $romdir/system/init.rc ]]; then
 		cd $romdir/system
-		inittest=""
-		find . -not -path "*system*" 2>/dev/null | while read line; do
-			inittest=$(grep "init\.d" $line 2>/dev/null)
-			if [[ $inittest != '' ]]; then
-				break
-			fi
-		done
 	else
 		initdstatus="1"
 		initdstatus1="${redt}N/A$normal"
 		return
 	fi
+	inittest=""
+	while read line; do
+		inittest=$(${usesudo}grep "init\.d" $line | grep -v "lge_fota\|chargerlogo")
+		if [[ $inittest ]]; then
+			break
+		fi
+	done <<< "$(ls | grep .rc$)"
+
 	if [[ $inittest ]]; then
 		initdstatus="Yes"
 		initdstatus1="$greent$t_enabled$normal"
@@ -4690,6 +4703,7 @@ isinitd() {
 	fi
 }
 isinsecure() {
+	insectest=""
 	if [[ -f $dfprop ]]; then
 		insectest=$(${usesudo}grep "ro.secure=0" $dfprop)
 	else

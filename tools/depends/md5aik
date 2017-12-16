@@ -1,4 +1,4 @@
-boot/AIK/unpackimg.sh 1aa99e24c2d9717b856d8ee782861855
-boot/AIK/cleanup.sh 38e733c5f2fe0f8df46f1583f8a0d3e0
-boot/AIK/authors.txt f2ee61aa89ead94681ceb07190e3cafa
-boot/AIK/repackimg.sh e7586ffc2e2848d72c5fa8cb5f8a8aef
+boot/AIK/unpackimg.sh 522736161cf9332b9a0cec1791623120
+boot/AIK/cleanup.sh de4bc64a1d57676b4978912363a40f09
+boot/AIK/authors.txt 150048651a995552a455a2c693fb6005
+boot/AIK/repackimg.sh 3139dec27ab20e26244a4c3dee769e2e
