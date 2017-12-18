@@ -137,6 +137,9 @@ boot_dmverity() {
 		banner
 		echo "${bluet}Removing dm-verity from ramdisk ...$normal"
 		${usesudo}$tools/source/rmverity.py $fstab >> $logs/main.log
+		if [[ ! $(echo "$fstab" | grep "bootimg\|recoveryimg") ]]; then
+			${usesudo}chown -h $myuser:$myuser $fstab
+		fi
 	fi
 	if [[ -f $romdir/${chosenimg}img/split_img/${chosenimg}.img-zImage ]]; then
 		banner
@@ -157,6 +160,9 @@ boot_forcee() {
 		for i in $fetmp; do
 			if [[ $(${usesudo}grep "/data" $fstab | grep "$i") ]]; then
 				${usesudo}sed -i "/\/data/s/$i/encryptable/g" $fstab
+				if [[ ! $(echo "$fstab" | grep "bootimg\|recoveryimg") ]]; then
+					${usesudo}chown -h $myuser:$myuser $fstab
+				fi
 				touch $prfiles/$i
 			fi
 		done
@@ -282,6 +288,9 @@ boot_insecure() {
 		else
 			${usesudo}gawk 'a=/ro\.secure=0/{b=1}b&&!a{print "ro\.adb\.secure=0";b=0}1' $dfprop | ${usesudo}tee ${dfprop}2 >/dev/null
 			${usesudo}mv ${dfprop}2 $dfprop
+		fi
+		if [[ ! $(echo "$dfprop" | grep "bootimg\|recoveryimg") ]]; then
+			${usesudo}chown -h $myuser:$myuser $dfprop
 		fi
 		banner
 		echo "$greent$t_boot_insecure$normal"
@@ -3474,8 +3483,9 @@ extract_new() {
 				banner
 				echo "$bluet$t_extract_chunk$normal"
 				$p7z e $romzip *system*chunk* boot.img */*system*chunk* */boot.img 2>/dev/null >> $logs/zip.log
+				rm -f *system_b*
 				romzip=""
-				romchunk=$(ls | grep chunk)
+				romchunk=$(ls | grep chunk | sort)
 			fi
 			if [[ $romzip ]]; then
 				banner
@@ -3523,12 +3533,16 @@ extract_new() {
 			banner
 			echo "$bluet$t_extract_convert_chunk$normal"
 			if [[ $(echo "$romchunk" | grep "sparsechunk") ]]; then
-				$simg2img *chunk* system.img.raw >> $logs/main.log
+				$simg2img $(echo "$romchunk" | tr '\n' ' ') system.img.raw >> $logs/main.log
 				rm -rf *chunk*
 				banner
 				echo "$bluet$t_extract_fix_img$normal"
 				$tools/source/fixmoto.py system.img.raw system.img >> $logs/main.log
-				rm -rf system.img.raw
+				if [[ -f system.img ]]; then
+					rm -rf system.img.raw
+				else
+					mv system.img.raw system.img
+				fi
 			else
 				$simg2img *chunk* system.img
 				rm -rf *chunk*
@@ -4160,7 +4174,6 @@ get_contexts() {
 				${usesudo}cp $romdir/${chosenimg}img/ramdisk/file_contexts.bin $prfiles/
 			elif [[ -f $romdir/${chosenimg}img/ramdisk/plat_file_contexts ]]; then
 				${usesudo}cp $romdir/${chosenimg}img/ramdisk/plat_file_contexts $prfiles/file_contexts
-				myuser=$(echo "$(whoami | gawk '{ print $1 }')")
 				${usesudo}chown -h $myuser:$myuser $prfiles/file_contexts
 				nonplat=$(${usesudo}cat $romdir/${chosenimg}img/ramdisk/nonplat_file_contexts)
 				echo "$nonplat" >> $prfiles/file_contexts
@@ -4189,7 +4202,6 @@ get_contexts() {
 		rm -rf $prfiles/file_contexts.bin
 	fi
 	if [[ -f $prfiles/file_contexts ]]; then
-		myuser=$(echo "$(whoami | gawk '{ print $1 }')")
 		${usesudo}chown -h $myuser:$myuser $prfiles/file_contexts
 	fi
 }
@@ -4330,7 +4342,6 @@ grab_devices() {
 	fi
 }
 imgextract() {
-	myuser=$(echo "$(whoami | gawk '{ print $1 }')")
 	banner
 	echo "$bluet$t_extract_sparse_convert$normal"
 	$simg2img ${extractimg}.img ${extractimg}.img-2 2>/dev/null
@@ -6330,6 +6341,7 @@ if [[ $(echo $(pwd) | grep " ") ]]; then
 	exit
 fi
 export base=$(pwd)
+export myuser=$(echo "$(whoami | gawk '{ print $1 }')")
 tools=$base/tools
 if [[ ! $t_select ]]; then
 	if [[ $(ls $tools | grep "srk-chosen") ]]; then
