@@ -7,7 +7,7 @@
 import os
 import sys
 import re
-from shutil import copyfile
+# from shutil import copyfile
 
 filename = None
 vstatus = None
@@ -16,27 +16,31 @@ if len(sys.argv) > 1:
     filename = sys.argv[1]
 if len(sys.argv) > 2:
     vstatus = sys.argv[2]
+    if vstatus != '-s':
+        filename = None
 
-if not filename:
-    print('Usage: rmverity.py boot.img [stats]')
-    sys.exit()
-
-def existf(filename):
+def existf(thefile):
 	try:
-		if os.path.isdir(filename):
+		if os.path.isdir(thefile):
 			return 2
-		if os.stat(filename).st_size > 0:
+		if os.stat(thefile).st_size > 0:
 			return 0
 		else:
 			return 1
 	except OSError:
 		return 2
 
-if existf(filename) != 0:
-    print('No '+filename)
+if not filename or filename in ['help', '--help', '-help', '-h'] or existf(filename) != 0:
+    print('Usage:')
+    print('  rmverity.py boot.img [-s]')
+    print('  rmverity.py fstab.qcom [-s]')
+    print('  rmverity.py zImage [-s]')
+    print()
+    print('  -s : status: returns "yes" or "no" if dm-verity is')
+    print('               present and does not patch the file.')
     sys.exit()
 
-# if existf(filename+'.bak') != 0:
+# if vstatus != '-s' and existf(filename+'.bak') != 0:
 #     print('Backing up '+filename+' ...')
 #     copyfile(filename, filename+'.bak')
 
@@ -46,7 +50,7 @@ with open(filename, 'rb') as f:
 
 thechk = b'\x2c\x76\x65\x72\x69\x66\x79'
 if re.search(thechk, data):
-    if vstatus:
+    if vstatus == '-s':
         print('yes')
         sys.exit()
 
@@ -62,6 +66,9 @@ if re.search(thechk, data):
             elif data[begin+bnum:begin+bnum+1] == b'\n':
                 result[data[begin:bnum + begin]] = b''
                 break
+            elif data[begin+bnum:begin+bnum+1] == b',':
+                result[data[begin:bnum + begin]] = b''
+                break
             else:
                 bnum = bnum + 1
         
@@ -70,7 +77,7 @@ if re.search(thechk, data):
 
     wflag = 1
 else:
-    if vstatus:
+    if vstatus == '-s':
         print('no')
         sys.exit()
     

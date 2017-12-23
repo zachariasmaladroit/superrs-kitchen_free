@@ -136,7 +136,7 @@ boot_dmverity() {
 	if [[ $fstab != 1 && -f "$fstab" ]]; then
 		banner
 		echo "${bluet}Removing dm-verity from ramdisk ...$normal"
-		${usesudo}$tools/source/rmverity.py $fstab >> $logs/main.log
+		${usesudo}$tools/source/rmverity.py $fstab >> $logs/boot.log
 		if [[ ! $(echo "$fstab" | grep "bootimg\|recoveryimg") ]]; then
 			${usesudo}chown -h $myuser:$myuser $fstab
 		fi
@@ -144,7 +144,7 @@ boot_dmverity() {
 	if [[ -f $romdir/${chosenimg}img/split_img/${chosenimg}.img-zImage ]]; then
 		banner
 		echo "${bluet}Removing dm-verity from dtb ...$normal"
-		${usesudo}$tools/source/rmverity.py $romdir/${chosenimg}img/split_img/${chosenimg}.img-zImage >> $logs/main.log
+		${usesudo}$tools/source/rmverity.py $romdir/${chosenimg}img/split_img/${chosenimg}.img-zImage >> $logs/boot.log
 	fi
 }
 boot_forcee() {
@@ -4625,7 +4625,7 @@ isdmverity() {
 		return 1
 	fi
 	findfstab
-	vdtb=$($tools/source/rmverity.py $romdir/${chosenimg}img/split_img/${chosenimg}.img-zImage status)
+	vdtb=$($tools/source/rmverity.py $romdir/${chosenimg}img/split_img/${chosenimg}.img-zImage -s)
 	vfstab=""
 	if [[ $fstab != 1 ]]; then
 		vfstab=$(${usesudo}grep "verify" $fstab)
