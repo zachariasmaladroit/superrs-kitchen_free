@@ -1,4 +1,5 @@
 /superr_*
+/mystuff
 /tools/img2sdat/*.pyc
 /tools/boot/*.zip
 /tools/inject-sepolicy/

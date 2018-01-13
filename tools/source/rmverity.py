@@ -7,17 +7,16 @@
 import os
 import sys
 import re
+import argparse
 # from shutil import copyfile
 
-filename = None
-vstatus = None
+parser = argparse.ArgumentParser(description="Remove dm-verity from boot.img, fstab, or zImage")
+group = parser.add_mutually_exclusive_group()
+group.add_argument("-s", "--status", action="store_true", help="returns \"yes\" or \"no\" if dm-verity is present and does not patch the file.")
+parser.add_argument("filename", help="Path to the working file")
+args = parser.parse_args()
 
-if len(sys.argv) > 1:
-    filename = sys.argv[1]
-if len(sys.argv) > 2:
-    vstatus = sys.argv[2]
-    if vstatus != '-s':
-        filename = None
+filename = args.filename
 
 def existf(thefile):
 	try:
@@ -30,17 +29,11 @@ def existf(thefile):
 	except OSError:
 		return 2
 
-if not filename or filename in ['help', '--help', '-help', '-h'] or existf(filename) != 0:
-    print('Usage:')
-    print('  rmverity.py boot.img [-s]')
-    print('  rmverity.py fstab.qcom [-s]')
-    print('  rmverity.py zImage [-s]')
-    print()
-    print('  -s : status: returns "yes" or "no" if dm-verity is')
-    print('               present and does not patch the file.')
+if existf(filename) != 0:
+    print('\n'+filename+' does not exist.\n')
     sys.exit()
 
-# if vstatus != '-s' and existf(filename+'.bak') != 0:
+# if not args.status and existf(filename+'.bak') != 0:
 #     print('Backing up '+filename+' ...')
 #     copyfile(filename, filename+'.bak')
 
@@ -50,7 +43,7 @@ with open(filename, 'rb') as f:
 
 thechk = b'\x2c\x76\x65\x72\x69\x66\x79'
 if re.search(thechk, data):
-    if vstatus == '-s':
+    if args.status:
         print('yes')
         sys.exit()
 
@@ -77,7 +70,7 @@ if re.search(thechk, data):
 
     wflag = 1
 else:
-    if vstatus == '-s':
+    if args.status:
         print('no')
         sys.exit()
     

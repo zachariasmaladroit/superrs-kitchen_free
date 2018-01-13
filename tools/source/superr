@@ -2264,13 +2264,12 @@ deodex_start() {
 deodex() {
 	arch=""
 	arch2=""
-	archtmp="arm64 x86_64 arm x86"
-	for i in $archtmp; do
-		archtest=$(find $framedir -type d 2>/dev/null | grep -m 1 -o "$i$")
-		if [[ $archtest ]]; then
-			break
-		fi
-	done
+	while read i; do
+		if [[ -d "$framedir/$i" ]]; then
+            archtest="$i"
+            break
+        fi
+	done <<< "$(echo -e "arm64\nx86_64\narm\nx86")"
 	if [[ $(echo "$archtest" | grep "64") ]]; then
 		arch2test=$(echo "$archtest" | sed 's/_64//; s/64$//')
 	fi
@@ -2316,15 +2315,17 @@ deodex() {
 	dodeodex() {
 		app=""
 		for app in $(echo "$applist"); do
-			if [[ ! -d $deoappdir/$app/$deoarch ]] || [[ ! -f $deoappdir/$app/$app.apk ]]; then
+			cd "$deoappdir/$app"
+        	app2=$(basename "$(find -name *.apk 2>/dev/null | head -n 1 | sed 's/\.apk$//')" 2>/dev/null)
+			if [[ ! -d $deoarch || ! -f $app2.apk ]]; then
 				continue
 			fi
-			if [[ ! $($p7z l $deoappdir/$app/$app.apk | grep classes.dex) ]]; then
+			if [[ ! $($p7z l $app2.apk | grep classes.dex) ]]; then
 				echo ""
 				echo "$t_deodex_deodexing $app"
 				echo ""
 				if [[ $dtype = "m2" || $dtype = "n2" ]]; then
-					classes=$(java -Xmx${heapsize}m -jar $baksmali list dex $deoappdir/$app/$deoarch/$app.odex 2>&1)
+					classes=$(java -Xmx${heapsize}m -jar $baksmali list dex $deoarch/$app.odex 2>&1)
 					echo "$classes" >> $logs/deodex.log
 					echo "$classes" | while read line; do
 						apkdex=$(basename $(echo "$line"))
@@ -2333,33 +2334,33 @@ deodex() {
 						else
 							dexclass=$(echo "$apkdex" | cut -d":" -f2-)
 						fi
-						java -Xmx${heapsize}m -jar $baksmali deodex -b $framedir/$deoarch2/boot.oat $deoappdir/$app/$deoarch/$app.odex/$apkdex -o $deoappdir/$app/$deoarch/smali >> $logs/deodex.log
-						java -Xmx${heapsize}m -jar $smali assemble -a $api $deoappdir/$app/$deoarch/smali -o $deoappdir/$app/$deoarch/$dexclass >> $logs/deodex.log
-						rm -rf $deoappdir/$app/$deoarch/smali
-						if [[ ! -f $deoappdir/$app/$deoarch/$dexclass ]]; then
-							echo "$deoappdir/$app/$deoarch/$dexclass" >> $logs/deodex_fail_list
+						java -Xmx${heapsize}m -jar $baksmali deodex -b $framedir/$deoarch2/boot.oat $deoarch/$app2.odex/$apkdex -o $deoarch/smali >> $logs/deodex.log
+						java -Xmx${heapsize}m -jar $smali assemble -a $api $deoarch/smali -o $deoarch/$dexclass >> $logs/deodex.log
+						rm -rf $deoarch/smali
+						if [[ ! -f $deoarch/$dexclass ]]; then
+							echo "${deoappdir/$romdir/}/$app/$deoarch/$dexclass" >> $logs/deodex_fail_list
 							continue
 						fi
 					done
 				elif [[ $dtype = "m" || $dtype = "l" ]]; then
-					java -Xmx${heapsize}m -jar $oat2dex $deoappdir/$app/$deoarch/$app.odex $framedir/$deoarch2/odex >> $logs/deodex.log
-					if [[ ! -f $deoappdir/$app/$deoarch/$app.dex ]]; then
-						rm -rf $deoappdir/$app/$deoarch/$app-classes*.dex
+					java -Xmx${heapsize}m -jar $oat2dex $deoarch/$app2.odex $framedir/$deoarch2/odex >> $logs/deodex.log
+					if [[ ! -f $deoarch/$app2.dex ]]; then
+						rm -rf $deoarch/$app2-classes*.dex
 						continue
 					fi
-					mv $deoappdir/$app/$deoarch/$app.dex $deoappdir/$app/$deoarch/classes.dex
-					find $deoappdir/$app/$deoarch -name $app-classes*.dex | while read line; do
+					mv $deoarch/$app2.dex $deoarch/classes.dex
+					find $deoarch -name $app2-classes*.dex | while read line; do
 						appclassdex=$(basename $line)
 						appclassdir=$(dirname $line)
 						classname=$(echo "$appclassdex" | cut -d"-" -f2)
 						mv $line $appclassdir/$classname
 					done
 				fi
-				$aapt add -fk $deoappdir/$app/$app.apk $deoappdir/$app/$deoarch/classes*.dex >> $logs/zip.log
+				($aapt add -fk "$app2.apk" "$deoarch"/classes*.dex 2>&1) >> $logs/zip.log
 				if [[ $dtype = "l" ]]; then
-					rm -rf $deoappdir/$app/$deoarch
+					rm -rf $deoarch
 				else
-					rm -rf $deoappdir/$app/oat
+					rm -rf oat
 				fi
 			else
 				echo ""
@@ -2444,7 +2445,9 @@ deodex() {
 			mkdir -p $sysdir/app/$aname/oat/$arch
 			mv $i $sysdir/app/$aname/oat/$arch/
 			if [[ $chimerav ]]; then
-				mv $(echo "$i" | sed 's/\.odex$/\.vdex/') $sysdir/app/$aname/oat/$arch/
+				if [[ -f $(echo "$i" | sed 's/\.odex$/\.vdex/') ]]; then
+					mv $(echo "$i" | sed 's/\.odex$/\.vdex/') $sysdir/app/$aname/oat/$arch/
+				fi
 			fi
 			mv $sysdir/priv-app/PrebuiltGmsCore/app_chimera/$dname/$aname.apk $sysdir/app/$aname/
 			echo "$sysdir/app/$aname/$aname.apk $sysdir/priv-app/PrebuiltGmsCore/app_chimera/$dname/" >> $logs/extramv.txt
@@ -2456,12 +2459,19 @@ deodex() {
 		for i in $vframe; do
 			nframe=$(basename $i | sed 's/\.jar$//')
 			dframe=$(dirname $i)
-			mv $i $framedir/
-			mv $dframe/oat/$arch/$nframe.odex $framedir/oat/$arch/
+			flip=""
+			if [[ -f $dframe/oat/$arch/$nframe.odex ]]; then
+				mv $dframe/oat/$arch/$nframe.odex $framedir/oat/$arch/
+				flip="1"
+			fi				
 			if [[ -f $dframe/oat/$arch/$nframe.vdex ]]; then
 				mv $dframe/oat/$arch/$nframe.vdex $framedir/oat/$arch/
+				flip="1"
 			fi
-			echo "$framedir/$nframe.jar $i" >> $logs/extramv.txt
+			if [[ $flip ]]; then
+				mv $i $framedir/
+				echo "$framedir/$nframe.jar $i" >> $logs/extramv.txt
+			fi
 		done
 		rm -rf $sysdir/vendor/framework/oat
 	fi
@@ -2569,12 +2579,13 @@ deodex() {
 	echo "$t_deodex_start_frame"
 	echo "----------------------------------------------------"
 	echo ""
+	cd "$framedir"
 	if [[ $dtype = "n2" || $dtype = "m2" ]]; then
 		if [[ $dtype = "n2" ]]; then
-			ls $framedir/$deoarch2 | grep .oat$ | sort | while read line; do
+			ls $deoarch2 | grep .oat$ | sort | while read line; do
 				if [[ $line != "boot.oat" ]]; then
 					framejar=$(echo "$(echo "$line" | sed 's/^boot-//; s/\.oat$//').jar")
-					if [[ $($p7z l $framedir/$framejar | grep classes.dex) ]]; then
+					if [[ $($p7z l $framejar | grep classes.dex) ]]; then
 						echo ""
 						echo "$greent$frame $t_deodex_app_already$normal"
 						echo ""
@@ -2584,7 +2595,7 @@ deodex() {
 				echo ""
 				echo "$t_deodex_deodexing $line"
 				echo ""
-				classes=$(java -Xmx${heapsize}m -jar $baksmali list dex $framedir/$deoarch2/$line | rev | cut -d"/" -f1 | rev)
+				classes=$(java -Xmx${heapsize}m -jar $baksmali list dex $deoarch2/$line | rev | cut -d"/" -f1 | rev)
 				echo "$classes" >> $logs/deodex.log
 				echo "$classes" | while read line2; do
 					if [[ ! $(echo "$line2" | grep classes) ]]; then
@@ -2594,13 +2605,13 @@ deodex() {
 						line3=$(echo "$line2" | rev | cut -d"." -f3- | rev)
 						dexclass=$(echo "$line2" | cut -d":" -f2-)
 					fi
-					java -Xmx${heapsize}m -jar $baksmali deodex -b $framedir/$deoarch2/boot.oat $framedir/$deoarch2/$line/$line2 -o $framedir/$deoarch2/smali >> $logs/deodex.log
-					java -Xmx${heapsize}m -jar $smali assemble -a $api $framedir/$deoarch2/smali -o $framedir/$line3.jar:$dexclass >> $logs/deodex.log
-					rm -rf $framedir/$deoarch2/smali
+					java -Xmx${heapsize}m -jar $baksmali deodex -b $deoarch2/boot.oat $deoarch2/$line/$line2 -o $deoarch2/smali >> $logs/deodex.log
+					java -Xmx${heapsize}m -jar $smali assemble -a $api $deoarch2/smali -o $line3.jar:$dexclass >> $logs/deodex.log
+					rm -rf $deoarch2/smali
 				done
 			done
 		elif [[ $dtype = "m2" ]]; then
-			classes=$(java -Xmx${heapsize}m -jar $baksmali list dex $framedir/$deoarch2/boot.oat | rev | cut -d"/" -f1 | rev)
+			classes=$(java -Xmx${heapsize}m -jar $baksmali list dex $deoarch2/boot.oat | rev | cut -d"/" -f1 | rev)
 			line=""
 			for line in $(echo "$classes"); do
 				if [[ ! $(echo "$line" | grep classes) ]]; then
@@ -2610,7 +2621,7 @@ deodex() {
 					framejar=$(echo "$line" | cut -d":" -f1)
 					dexclass=""
 				fi
-				if [[ $($p7z l $framedir/$framejar | grep classes.dex) ]]; then
+				if [[ $($p7z l $framejar | grep classes.dex) ]]; then
 					echo ""
 					echo "$greent$frame $t_deodex_app_already$normal"
 					echo ""
@@ -2620,16 +2631,16 @@ deodex() {
 				echo ""
 				echo "$t_deodex_deodexing $line2"
 				echo ""
-				java -Xmx${heapsize}m -jar $baksmali deodex -b $framedir/$deoarch2/boot.oat $framedir/$deoarch2/boot.oat/$line -o $framedir/smali >> $logs/deodex.log
-				java -Xmx${heapsize}m -jar $smali assemble -a $api $framedir/smali -o $framedir/$line$dexclass >> $logs/deodex.log
-				rm -rf $framedir/smali
+				java -Xmx${heapsize}m -jar $baksmali deodex -b $deoarch2/boot.oat $deoarch2/boot.oat/$line -o smali >> $logs/deodex.log
+				java -Xmx${heapsize}m -jar $smali assemble -a $api smali -o $line$dexclass >> $logs/deodex.log
+				rm -rf smali
 			done
 		fi
-		if [[ -d $framedir/$deoarch ]]; then
+		if [[ -d $deoarch ]]; then
 			frame=""
-			for frame in $(ls $framedir/$deoarch | grep .odex$ | sort); do
+			for frame in $(ls $deoarch | grep .odex$ | sort); do
 				framejar=$(echo "$(echo "$frame" | rev | cut -d"." -f2- | rev).jar")
-				if [[ $($p7z l $framedir/$framejar | grep classes.dex) ]]; then
+				if [[ $($p7z l $framejar | grep classes.dex) ]]; then
 					echo ""
 					echo "$greent$frame $t_deodex_app_already$normal"
 					echo ""
@@ -2638,7 +2649,7 @@ deodex() {
 				echo ""
 				echo "$t_deodex_deodexing $frame"
 				echo ""
-				classes=$(java -Xmx${heapsize}m -jar $baksmali list dex $framedir/$deoarch/$frame)
+				classes=$(java -Xmx${heapsize}m -jar $baksmali list dex $deoarch/$frame)
 				echo "$classes" >> $logs/deodex.log
 				echo "$classes" | while read line; do
 					apkdex=$(basename $(echo "$line"))
@@ -2647,54 +2658,54 @@ deodex() {
 					else
 						dexclass="$apkdex"
 					fi
-					java -Xmx${heapsize}m -jar $baksmali deodex -b $framedir/$deoarch2/boot.oat $framedir/$deoarch/$frame/$apkdex -o $framedir/$deoarch/smali >> $logs/deodex.log
-					java -Xmx${heapsize}m -jar $smali assemble -a $api $framedir/$deoarch/smali -o $framedir/$dexclass >> $logs/deodex.log
-					rm -rf $framedir/$deoarch/smali
+					java -Xmx${heapsize}m -jar $baksmali deodex -b $deoarch2/boot.oat $deoarch/$frame/$apkdex -o $deoarch/smali >> $logs/deodex.log
+					java -Xmx${heapsize}m -jar $smali assemble -a $api $deoarch/smali -o $dexclass >> $logs/deodex.log
+					rm -rf $deoarch/smali
 				done
 			done
 		fi
 	elif [[ $dtype = "l" || $dtype = "m" ]]; then
-		if [[ -d $framedir/$deoarch ]]; then
-			for frame in $(ls $framedir/$deoarch | grep .odex$ | sort); do
+		if [[ -d $deoarch ]]; then
+			for frame in $(ls $deoarch | grep .odex$ | sort); do
 				echo ""
 				echo "$t_deodex_deodexing $frame"
 				echo ""
 				errtest=$(echo "$frame" | rev | cut -d"." -f2- | rev)
-				java -Xmx${heapsize}m -jar $oat2dex $framedir/$deoarch/$frame $framedir/$deoarch2/odex >> $logs/deodex.log
+				java -Xmx${heapsize}m -jar $oat2dex $deoarch/$frame $deoarch2/odex >> $logs/deodex.log
 			done
 		fi
-		mv $framedir/$deoarch2/dex/* $framedir/$deoarch/
-		ls $framedir/$deoarch | grep "\.dex$" | while read line; do
+		mv $deoarch2/dex/* $deoarch/
+		ls $deoarch | grep "\.dex$" | while read line; do
 			if [[ ! $(echo "$line" | grep classes) ]]; then
 				frame=$(echo "$(echo "$line" | sed 's/\.dex//').jar:classes.dex")
 			else
 				dexclass=$(echo "$line" | rev | cut -d"-" -f1 | rev)
 				frame=$(echo "$(echo "$line" | sed "s/-$dexclass//").jar:$dexclass")
 			fi
-			mv $framedir/$deoarch/$line $framedir/$frame
+			mv $deoarch/$line $frame
 		done
 	fi
 	banner
 	echo "$bluet$t_deodex_pack_jar$normal"
-	ls $framedir | grep "jar:classes.dex" | sort | while read line; do
-		line2=$(echo "$line" | cut -d":" -f1)
-		ls $framedir | grep .dex$ | grep "^$line2" | while read line3; do
-			line4=$(echo "$line3" | cut -d":" -f2)
-			mv $framedir/$line3 $framedir/$line4
+    ls | grep "jar:classes.dex" | sort | while read line; do
+        jname=$(echo "$line" | cut -d':' -f1)
+		ls | grep "^${jname}:" | while read i; do
+            jclass=$(echo "$i" | cut -d':' -f2)
+			mv "$i" "$jclass"
 		done
-		if [[ -f $framedir/classes.dex ]]; then
-			$aapt add -fk $framedir/$line2 $framedir/classes*.dex >> $logs/zip.log
+        if [[ -f "classes.dex" ]]; then
+			($aapt add -fk "$jname" classes*.dex 2>&1) >> $logs/zip.log
 		else
-			echo "ERROR: $line2 has no classes.dex" >> $logs/deodex.log
+			echo "ERROR: $jname has no classes.dex" >> $logs/deodex.log
 		fi
-		rm -rf $framedir/classes*.dex
+		rm -rf classes*.dex
 	done
 	if [[ $dtype = "l" || $dtype = "m" ]]; then
-		rm -rf $framedir/$arch/odex
-		rm -rf $framedir/$arch/dex
+		rm -rf $arch/odex
+		rm -rf $arch/dex
 		if [[ $arch2 ]]; then
-			rm -rf $framedir/$arch2/odex
-			rm -rf $framedir/$arch2/dex
+			rm -rf $arch2/odex
+			rm -rf $arch2/dex
 		fi
 	fi
 	echo "$clears"
@@ -2713,10 +2724,10 @@ deodex() {
 		done
 	fi
 	rm -rf $logs/extramv.txt
-	rm -rf $framedir/oat
-	rm -rf $framedir/$arch
+	rm -rf oat
+	rm -rf $arch
 	if [[ $arch2 ]]; then
-		rm -rf $framedir/$arch2
+		rm -rf $arch2
 	fi
 
 	if [[ $dtype = "l" || $dtype = "m" ]]; then
@@ -4446,7 +4457,7 @@ imgextract() {
 							echo "$line" >> $prfiles/$set_metadata1
 						fi
 					elif [[ -f $line2 ]]; then
-						caphex=$($tools/source/getcap.py $line2 h | cut -d' ' -f2)
+						caphex=$($tools/source/getcap.py -x $line2 | cut -d' ' -f2)
 						if [[ ! $caphex ]]; then
 							caphex="0x0"
 						fi
@@ -4625,7 +4636,7 @@ isdmverity() {
 		return 1
 	fi
 	findfstab
-	vdtb=$($tools/source/rmverity.py $romdir/${chosenimg}img/split_img/${chosenimg}.img-zImage -s)
+	vdtb=$($tools/source/rmverity.py -s $romdir/${chosenimg}img/split_img/${chosenimg}.img-zImage)
 	vfstab=""
 	if [[ $fstab != 1 ]]; then
 		vfstab=$(${usesudo}grep "verify" $fstab)

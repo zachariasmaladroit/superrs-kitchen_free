@@ -4,7 +4,7 @@
 # by SuperR. @XDA
 
 from __future__ import print_function
-import sys, os, re
+import sys, os, re, argparse
 
 if int(''.join(str(i) for i in sys.version_info[0:2])) < 35:
 	print('Python 3.5 or newer is required.')
@@ -21,21 +21,13 @@ def existf(filename):
 	except OSError:
 		return 2
 
-lenarg = len(sys.argv)
-if lenarg < 3 or lenarg > 3:
-    print()
-    print('Usage: fixmoto.py path/to/broken.img path/to/new.img')
-    print()
-    print('Example:')
-    if os.name == 'nt':
-        print('python3 fixmoto.py system.img system_new.img')
-    else:
-        print('./fixmoto.py system.img system_new.img')
-    print()
-    sys.exit()
+parser = argparse.ArgumentParser(description="Fix Motorola img files to be valid ext4.")
+parser.add_argument("broken", help="Path to the broken.img")
+parser.add_argument("fixed", help="Path to the new fixed.img")
+args = parser.parse_args()
 
-b = sys.argv[1]
-n = sys.argv[2]
+b = args.broken
+n = args.fixed
     
 if existf(b) != 0:
     print('\n'+b+' does not exist.\n')

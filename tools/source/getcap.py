@@ -2,31 +2,20 @@
 
 # by SuperR. @XDA
 
-import sys, os, struct
+import sys, os, struct, argparse
 
-lenarg = len(sys.argv)
-if lenarg < 2:
-    print()
-    print('Usage: getcap.py path/to/file [ h ]')
-    print()
-    print('h - hex format (decimal is default)')
-    print()
-    print('Example:')
-    print('./getcap.py system/bin/run-as h')
-    sys.exit()
-else:
-    p = sys.argv[1]
-    f = None
-    if lenarg > 2:
-        f = str(sys.argv[2])
-    
-    try:
-        b = os.getxattr(p, "security.capability")
-        cap = str(list(struct.unpack("<IIIII", b))[1])
-        if f == 'h':
-            print(p, hex(int(cap)))
-        else:
-            print(p, cap)
+parser = argparse.ArgumentParser(description="Retrieve file capabilities from a file.")
+group = parser.add_mutually_exclusive_group()
+group.add_argument("-x", "--hex", action="store_true", help="Returns file capability in hex format (default is decimal)")
+parser.add_argument("filename", help="Path to the working file")
+args = parser.parse_args()
 
-    except:
-        pass
+try:
+    b = os.getxattr(args.filename, "security.capability")
+    cap = str(list(struct.unpack("<IIIII", b))[1])
+    if args.hex:
+        print(args.filename, hex(int(cap)))
+    else:
+        print(args.filename, cap)
+except:
+    pass
