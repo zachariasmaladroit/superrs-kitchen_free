@@ -2325,7 +2325,7 @@ deodex() {
 				echo "$t_deodex_deodexing $app"
 				echo ""
 				if [[ $dtype = "m2" || $dtype = "n2" ]]; then
-					classes=$(java -Xmx${heapsize}m -jar $baksmali list dex $deoarch/$app.odex 2>&1)
+					classes=$(java -Xmx${heapsize}m -jar $baksmali list dex $deoarch/$app2.odex 2>&1)
 					echo "$classes" >> $logs/deodex.log
 					echo "$classes" | while read line; do
 						apkdex=$(basename $(echo "$line"))
@@ -3096,7 +3096,7 @@ extract_new() {
 		romchunk=""
 		romimg=""
 		romwin=""
-		find . -maxdepth 1 -type f | grep ".tgz$\|.zip$\|.tar$\|.tar.a$\|.tar.md5$\|.win\|chunk\|.img$\|system.ext4$\|system.img.ext4" | grep -v "boot\.img\|recovery\.img" | sed 's/^\.\///' > $prfiles/findextract
+		find . -maxdepth 1 -type f | grep ".tgz$\|.zip$\|.tar$\|.tar.a$\|.tar.md5$\|.win\|chunk\|.img$\|system.ext4$\|system.img.ext4" | grep -v "boot\.img\|recovery\.img" | sed 's/^\.\///' | sort > $prfiles/findextract
 		if [[ ! $(cat $prfiles/findextract | wc -l) -gt "1" ]]; then
 			if [[ $(grep *-*-factory-*.tgz $prfiles/findextract) || $(grep *-*-factory-*.zip $prfiles/findextract) || $(grep *-*-preview-*.tgz $prfiles/findextract) || $(grep *-*-preview-*.zip $prfiles/findextract) ]]; then
 				romtgz=$(cat $prfiles/findextract)
@@ -3395,11 +3395,18 @@ extract_new() {
 				banner
 				echo "$bluet$t_extract_dat$normal"
 				$p7z e $romzip *.new.dat* *.transfer.list boot.img 2>/dev/null >> $logs/zip.log
-				if [[ -f system.new.dat.xz ]]; then
-					$p7z e system.new.dat.xz 2>/dev/null >> $logs/zip.log
-					rm -rf system.new.dat.xz
-				fi
-				ls | grep "\.new\.dat" | cut -d"." -f1 | while read line; do
+				ls | grep "\.new\.dat" | while read i; do
+					line=$(echo "$i" | cut -d"." -f1)
+					if [[ $(echo "$i" | grep "\.dat\.xz") ]]; then
+						$p7z e "$i" 2>/dev/null >> $logs/zip.log
+						rm -rf "$i"
+					fi
+					if [[ $(echo "$i" | grep "\.dat\.br") ]]; then
+						banner
+						echo "$bluet$t_extract_convert_br$normal"
+						$ttools/brotli -d "$i"
+						rm -f "$i"
+					fi
 					banner
 					echo "$bluet$t_extract_convert_sys $line.img ...$normal"
 					$ttools/sdat2img.py $line.transfer.list $line.new.dat $line.img > $logs/main.log
@@ -4407,29 +4414,25 @@ imgextract() {
 			apitemp=""
 		fi
 		if [[ $apitmp -ge "19" ]]; then
-			if [[ $extractimg = "system" && -f output/init.rc && -d output/system/app ]]; then
-				cd output
-				find . -maxdepth 1 | while read line; do
-					line2=$(echo "$line" | sed 's/^\.//')
-					filecon=$(ls -dZ $line | gawk '{print $1}')
-					if [[ ! $filecon || $(echo "$filecon" | grep "unlabeled\|?") ]]; then
-						filecon="#CONTEXT"
-					fi
-					stat -c "set_metadata(\"/system$line2\", \"uid\", %u, \"gid\", %g, \"mode\", 0%a, \"capabilities\", 0x0, \"selabel\", \"$filecon\");" $line >> $prfiles/root_meta
-				done
-				grep -v "\"/system\/system\"\|\"/system\"" $prfiles/root_meta > $prfiles/root_meta2
-				mv $prfiles/root_meta2 $prfiles/root_meta
-				cd $romdir
-			fi
+			local getmeta=$($tools/source/getmeta.py -s "$romdir/output" "$extractimg")
 			if [[ $extractimg = "system" || $extractimg = "vendor" ]]; then
 				if [[ $extractimg = "system" ]]; then
 					if [[ -f output/init.rc && -d output/system/app ]]; then
-						find output/system/bin -type f 2>/dev/null | sed 's/^output/system/' > $prfiles/binblk
-						find output/system/vendor/bin -type f 2>/dev/null | sed 's/^output/system/' > $prfiles/vinblk
+						echo "$getmeta" | grep -v "system/system\|system/ " | while read i; do
+							local thefile=$(echo "$i" | gawk '{print $1}')
+							local uid=$(echo "$i" | gawk '{print $2}')
+							local gid=$(echo "$i" | gawk '{print $3}')
+							local mode=$(echo "$i" | gawk '{print $4}')
+							local cap=$(echo "$i" | gawk '{print $5}')
+							local con=$(echo "$i" | gawk '{print $6}')
+							echo "set_metadata(\"/$thefile\", \"uid\", $uid, \"gid\", $gid, \"mode\", $mode, \"capabilities\", $cap, \"selabel\", \"$con\");" >> $prfiles/root_meta
+						done
+						find output/system/bin -type f 2>/dev/null | sed 's/^output/system/' | sort > $prfiles/binblk
+						find output/system/vendor/bin -type f 2>/dev/null | sed 's/^output/system/' | sort > $prfiles/vinblk
 						cp $tools/updater/set_meta_list2 $prfiles/set_meta_list
 					else
-						find output/bin -type f 2>/dev/null | sed 's/^output/system/' > $prfiles/binblk
-						find output/vendor/bin -type f 2>/dev/null | sed 's/^output/system/' > $prfiles/vinblk
+						find output/bin -type f 2>/dev/null | sed 's/^output/system/' | sort > $prfiles/binblk
+						find output/vendor/bin -type f 2>/dev/null | sed 's/^output/system/' | sort > $prfiles/vinblk
 						cp $tools/updater/set_meta_list $prfiles/set_meta_list
 					fi
 					sed -i "/#BIN/ r $prfiles/binblk" $prfiles/set_meta_list
@@ -4437,41 +4440,45 @@ imgextract() {
 					rm -rf $prfiles/binblk $prfiles/vinblk
 					metalist=$(cat $prfiles/set_meta_list)
 				elif [[ $extractimg = "vendor" ]]; then
-					if [[ -f $prfiles/file_contexts ]]; then
-						metalist=$(grep "^/vendor" $prfiles/file_contexts | gawk '{print $1}' | sed 's/^\///g')
+					if [[ $getmeta ]]; then
+						metalist=$(echo "$getmeta" | grep "^vendor/bin" | gawk '{print $1}' | sort)
 					else
 						metalist=$(cat $tools/updater/set_meta_listV)
 					fi
 				fi
-				echo "$metalist" | while read line; do
+				echo "$metalist" > $prfiles/tmpmetalist
+				echo "$getmeta" | grep -v ":system_file\|:system_library_file\|:vendor_file\|vendor_configs_file\|vendor_app_file\|vendor_hal_file\|vendor_overlay_file\|vendor_framework_file\|same_process_hal_file\|:rootfs" | sort | while read line; do
+					i=$(echo "$line" | gawk '{print $1}')
+					if [[ ! $(grep "$i" $prfiles/tmpmetalist) ]]; then
+						echo "$i" >> $prfiles/tmpmetalist
+					fi
+				done
+				cat $prfiles/tmpmetalist | while read line; do
 					if [[ $extractimg = "system" ]]; then
-						line2=$(echo "$line" | sed 's/^system/output/')
 						set_metadata1="set_metadata1"
 					else
-						line2=$(echo "$line" | sed 's/^vendor/output/')
 						set_metadata1="set_metadataV"
 					fi
 					if [[ $(echo "$line" | grep set_metadata) ]]; then
-						ftmp=$(echo "$line2" | cut -d'"' -f2 | sed 's:^\/::')
+						ftmp=$(echo "$line" | cut -d'"' -f2 | sed 's:^\/::')
 						if [[ -f $ftmp || -d $ftmp ]]; then
 							echo "$line" >> $prfiles/$set_metadata1
 						fi
-					elif [[ -f $line2 ]]; then
-						caphex=$($tools/source/getcap.py -x $line2 | cut -d' ' -f2)
-						if [[ ! $caphex ]]; then
-							caphex="0x0"
-						fi
-						filecon=$(ls -dZ $line2 | gawk '{print $1}')
-						if [[ ! $filecon || $(echo "$filecon" | grep "unlabeled\|?") ]]; then
-							filecon="#CONTEXT"
-						fi
-						stat -c "set_metadata(\"/$line\", \"uid\", %u, \"gid\", %g, \"mode\", 0%a, \"capabilities\", $caphex, \"selabel\", \"$filecon\");" $line2 >> $prfiles/$set_metadata1
+					elif [[ -f $line ]]; then
+						local i=$(grep "^$line " <<< "$getmeta")
+						local thefile=$(echo "$i" | gawk '{print $1}')
+						local uid=$(echo "$i" | gawk '{print $2}')
+						local gid=$(echo "$i" | gawk '{print $3}')
+						local mode=$(echo "$i" | gawk '{print $4}')
+						local cap=$(echo "$i" | gawk '{print $5}')
+						local con=$(echo "$i" | gawk '{print $6}')
+						echo "set_metadata(\"/$thefile\", \"uid\", $uid, \"gid\", $gid, \"mode\", $mode, \"capabilities\", $cap, \"selabel\", \"$con\");" >> $prfiles/$set_metadata1
 					fi
 				done
 			fi
 		fi
 		${usesudo2}umount output/
-		rm -rf $romdir/output $prfiles/cap_temp
+		rm -rf $romdir/output $prfiles/cap_temp $prfiles/set_meta_list $prfiles/tmpmetalist
 	fi
 	extractimg=""
 }
@@ -5231,32 +5238,14 @@ partadd() {
 	if [[ -f "$deviceloc/superr_mmc" && $(grep "$whatimg" "$deviceloc/superr_mmc") ]]; then
 		partbyname=$(grep "$whatimg" "$deviceloc/superr_mmc" | gawk '{ print $1 }')
 	elif [[ -s $deviceloc/superr_byname ]]; then
-		if [[ $whatimg = "vendor" ]]; then
-			if [[ -f "$deviceloc/superr_capbyname" ]]; then
-				partbyname="\/VENDOR"
-			elif [[ -f "$deviceloc/superr_appbyname" ]]; then
-				partbyname="\/VNR"
-			else
-				partbyname="\/vendor"
-			fi
-		elif [[ $whatimg = "data" ]]; then
-			if [[ -f "$deviceloc/superr_capbyname" ]]; then
-				partbyname="\/USERDATA"
-			elif [[ -f "$deviceloc/superr_appbyname" ]]; then
-				partbyname="\/UDA"
-			else
-				partbyname="\/userdata"
-			fi
-		else
-			partbyname="\/$whatimg"
-		fi
+		partbyname="$whatimg"
 	fi
 	if [[ $partbyname ]]; then
 		if [[ $permtype = "sparse_dat" || $permtype = "raw_img" ]]; then
 			cd $usdir
 			gawk 'a=/^mount/{b=1}b&&!a{print "#MOUNT";b=0}1' updater-script > updater-script2
 			mv updater-script2 updater-script
-			sed -i "s/#MOUNT/mount(\"ext4\"\,\ \"EMMC\"\,\ file_getprop\(\"\/tmp\/config\",\ \"byname\"\)\ +\ \"$partbyname\"\ +\ file_getprop\(\"\/tmp\/config\",\ \"slotnum\"\),\ \"\/$whatimg\"\,\ \"\");/" updater-script
+			sed -i "s/#MOUNT/mount(\"ext4\"\,\ \"EMMC\"\,\ file_getprop\(\"\/tmp\/config\",\ \"$whatimg\"\),\ \"\/$whatimg\"\,\ \"\");/" updater-script
 			gawk 'a=/^ifelse\(is_mounted/{b=1}b&&!a{print "#UNMOUNT1";b=0}1' updater-script > updater-script2
 			mv updater-script2 updater-script
 			gawk 'a=/^unmount/{b=1}b&&!a{print "#UNMOUNT2";b=0}1' updater-script > updater-script2
@@ -5278,7 +5267,6 @@ partadd() {
 					fi
 				fi
 				sed -i "/#$partup/ r $tools/updater/extra-$permtype.txt" updater-script
-				sed -i "s/#PARTEXTRA/$partbyname/g" updater-script
 				sed -i "s/#PEXTRA/$whatimg/g" updater-script
 				touch $prfiles/${whatimg}img
 			elif [[ $whatimg = "data" ]]; then
@@ -5288,7 +5276,7 @@ partadd() {
 					gawk 'a=/system_new/{b=1}b&&!a{print "#DATA";b=0}1' updater-script > updater-script2
 				fi
 				mv updater-script2 updater-script
-				choice=""
+				choice=
 				while [[ ! $choice ]]; do
 					banner
 					echo "$yellowb$redt$t_extra_data$normal"
@@ -5299,7 +5287,7 @@ partadd() {
 					read -n 1 -p "$t_extra_data_perm" choice
 
 					if [[ ! ${choice} =~ ^[1-2]$ ]]; then
-						choice=""
+						choice=
 						continue
 					elif [[ $choice = "1" ]]; then # START sparse_dat/raw_img data
 						sed -i "/#DATA/ r $tools/updater/data-$permtype.txt" updater-script
@@ -5315,7 +5303,7 @@ partadd() {
 			cd $usdir
 			gawk 'a=/^mount/{b=1}b&&!a{print "#MOUNT";b=0}1' updater-script > updater-script2
 			mv updater-script2 updater-script
-			sed -i "s/#MOUNT/mount(\"ext4\"\,\ \"EMMC\"\,\ file_getprop\(\"\/tmp\/config\",\ \"byname\"\)\ +\ \"$partbyname\"\ +\ file_getprop\(\"\/tmp\/config\",\ \"slotnum\"\),\ \"\/$whatimg\");/" updater-script
+			sed -i "s/#MOUNT/mount(\"ext4\"\,\ \"EMMC\"\,\ file_getprop\(\"\/tmp\/config\",\ \"$whatimg\"\),\ \"\/$whatimg\");/" updater-script
 			gawk 'a=/^ifelse\(is_mounted/{b=1}b&&!a{print "#UNMOUNT1";b=0}1' updater-script > updater-script2
 			mv updater-script2 updater-script
 			gawk 'a=/^unmount/{b=1}b&&!a{print "#UNMOUNT2";b=0}1' updater-script > updater-script2
@@ -5325,7 +5313,7 @@ partadd() {
 			if [[ ! $whatimg = "data" ]]; then
 				gawk 'a=/^format/{b=1}b&&!a{print "#FORMAT";b=0}1' updater-script > updater-script2
 				mv updater-script2 updater-script
-				sed -i "s/#FORMAT/format(\"ext4\"\,\ \"EMMC\"\,\ file_getprop\(\"\/tmp\/config\",\ \"byname\"\)\ +\ \"$partbyname\"\ +\ file_getprop\(\"\/tmp\/config\",\ \"slotnum\"\),\ \"0\"\,\ \"\/$whatimg\");/" updater-script
+				sed -i "s/#FORMAT/format(\"ext4\"\,\ \"EMMC\"\,\ file_getprop\(\"\/tmp\/config\",\ \"$whatimg\"\),\ \"0\"\,\ \"\/$whatimg\");/" updater-script
 			fi
 			if [[ -s $prfiles/exdirs && $(grep "$whatimg" $prfiles/exdirs) ]]; then
 				partup=$(echo $whatimg | gawk '{print toupper($0)}')
@@ -5341,9 +5329,10 @@ partadd() {
 					cat $prfiles/set_metadataV >> $prfiles/set_metadata
 				fi
 			elif [[ $whatimg = "data" ]]; then
-				gawk 'a=/\"system\"/{b=1}b&&!a{print "#DATA";b=0}1' updater-script > updater-script2
+				gawk 'a=/\"system\",/{b=1}b&&!a{print "#DATA";b=0}1' updater-script > updater-script2
 				mv updater-script2 updater-script
 				sed -i "/#DATA/ r $tools/updater/data-set_metadata.txt" updater-script
+				sed -i "s/#PARTDATA/$partbyname/" updater-script
 				touch $prfiles/data-set_metadata
 			fi
 		fi
@@ -5439,7 +5428,7 @@ part_setup() {
 	if [[ -f "$deviceloc/superr_mmc" ]]; then
 		if [[ $(grep "$chosenimg" "$deviceloc/superr_mmc") ]]; then
 			mmcchosen=$(grep "$chosenimg" "$deviceloc/superr_mmc" | gawk '{ print $1 }')
-			sed -i "s:file_getprop(\"\/tmp\/config\",\ \"byname\")\ +\ \"\/$chosenimg\"\ +\ file_getprop(\"\/tmp\/config\",\ \"slotnum\"):\"$mmcchosen\":g" $usdir/updater-script
+			sed -i "s:file_getprop(\"\/tmp\/config\",\ \"$chosenimg\"):\"$mmcchosen\":g" $usdir/updater-script
 		else
 			if [[ $chosenimg = 'boot' && -f $romdir/system/init.rc ]]; then
 				grep -v " boot \|boot.img" $usdir/updater-script > $usdir/updater-script2
@@ -5454,7 +5443,7 @@ part_setup() {
 			fi
 		fi
 		mmcsystem=$(grep "system" "$deviceloc/superr_mmc" | gawk '{ print $1 }')
-		sed -i "s:file_getprop(\"\/tmp\/config\",\ \"byname\")\ +\ \"\/system\"\ +\ file_getprop(\"\/tmp\/config\",\ \"slotnum\"):\"$mmcsystem\":g" $usdir/updater-script
+		sed -i "s:file_getprop(\"\/tmp\/config\",\ \"system\"):\"$mmcsystem\":g" $usdir/updater-script
 	else
 		if [[ -f "$deviceloc/superr_capbyname" ]]; then
 			sed -i "s/+\ \"\/system\"\ +/+\ \"\/SYSTEM\"\ +/g" $usdir/updater-script
@@ -6494,10 +6483,9 @@ if [[ ! -f $tools/depmet ]]; then
 		fi
 	done
 	if [[ -s depinstall ]]; then
+		debpkg="binutils coreutils cpio e2fsprogs findutils gawk grep gzip libc-bin liblz4-tool lzop mount ncurses-bin procps sed tar unzip util-linux vim-common wget xz-utils"
 		if [[ $(getconf LONG_BIT) = "64" ]]; then
-			debpkg="binutils libc6-i386 coreutils cpio e2fsprogs findutils gawk gcc grep gzip libc-bin liblz4-tool lzop mount ncurses-bin perl-base procps sed tar unzip util-linux vim-common wget xz-utils"
-		else
-			debpkg="binutils coreutils cpio e2fsprogs findutils gawk gcc grep gzip libc-bin liblz4-tool lzop mount ncurses-bin perl-base procps sed tar unzip util-linux vim-common wget xz-utils"
+			debpkg="$debpkg libc6-i386"
 		fi
 		depinstall=$(cat depinstall)
 		banner

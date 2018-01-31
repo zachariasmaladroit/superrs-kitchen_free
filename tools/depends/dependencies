@@ -1,4 +1,3 @@
-ar
 basename
 cat
 chown
@@ -6,18 +5,15 @@ cp
 cpio
 cut
 date
-dd
 dirname
 du
 echo
 find
 gawk
-gcc
 grep
 gunzip
 gzip
 head
-ldd
 ln
 ls
 lzma
@@ -26,15 +22,12 @@ mkdir
 mount
 mv
 paste
-perl
-pgrep
 python2
 python3
 rev
 rm
 sed
 sort
-stat
 strings
 sudo
 tar
@@ -48,5 +41,4 @@ unzip
 wc
 wget
 whoami
-xxd
 xz

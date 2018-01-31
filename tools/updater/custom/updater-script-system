@@ -16,7 +16,7 @@ set_metadata("/tmp/configure.sh", "uid", 0, "gid", 0, "mode", 0777);
 run_program("/tmp/configure.sh");
 ui_print("Mounting system...");
 ui_print(" ");
-mount("ext4", "EMMC", file_getprop("/tmp/config", "byname") + "/system" + file_getprop("/tmp/config", "slotnum"), "/system");
+mount("ext4", "EMMC", file_getprop("/tmp/config", "system"), "/system");
 set_progress(0.200000);
 ui_print("Deleting existing directories...");
 ui_print(" ");

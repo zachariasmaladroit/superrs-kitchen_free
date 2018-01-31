@@ -14,6 +14,6 @@ set_metadata("/tmp/configure.sh", "uid", 0, "gid", 0, "mode", 0777);
 run_program("/tmp/configure.sh");
 ui_print("Extracting recovery image...");
 ui_print(" ");
-package_extract_file("recovery.img", file_getprop("/tmp/config", "byname") + "/recovery" + file_getprop("/tmp/config", "slotnum"));
+package_extract_file("recovery.img", file_getprop("/tmp/config", "recovery"));
 set_progress(1.000000);
 ui_print("#SIGNATURE Installed");
