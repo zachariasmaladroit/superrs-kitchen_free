@@ -1,5 +1,5 @@
 ui_print("Extracting data..."); ui_print(" ");
-mount("ext4", "EMMC", file_getprop("/tmp/config", "#PARTDATA"), "/data");
+mount("ext4", "EMMC", file_getprop("/tmp/config", "data"), "/data");
 package_extract_dir("data", "/data");
 set_metadata_recursive("/data/app", "uid", 1000, "gid", 1000, "dmode", 0755, "fmode", 0644);
 ifelse(is_mounted("/data"), unmount("/data"));

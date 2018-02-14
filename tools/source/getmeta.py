@@ -15,38 +15,38 @@ group.add_argument('-o', '--outfile', help='Write result to file.')
 args = parser.parse_args()
 
 if os.name == 'nt':
-    print('\nThis program will not provide the desired results in Windows\n')
-    sys.exit()
+	print('\nThis program will not provide the desired results in Windows\n')
+	sys.exit()
 
 indir = args.directory
 
 if not glob.glob(indir+'/*'):
-    print('\n'+indir+' does not exist or is empty.\n')
-    sys.exit()
+	print('\n'+indir+' does not exist or is empty.\n')
+	sys.exit()
 
 for i in glob.glob(indir+'/**', recursive=True):
-    if os.path.islink(i):
-        continue
+	if os.path.islink(i):
+		continue
 
-    try:
-        b = os.getxattr(i, "security.selinux").replace(b'\x00', b'')
-        con = str(b.decode())
-    except:
-        con = 'u:object_r:'+args.partition+'_file:s0'
+	try:
+		b = os.getxattr(i, "security.selinux").replace(b'\x00', b'')
+		con = str(b.decode())
+	except:
+		con = 'u:object_r:'+args.partition+'_file:s0'
 
-    try:
-        b = os.getxattr(i, "security.capability")
-        cap = hex(int(list(struct.unpack("<IIIII", b))[1]))
-    except:
-        cap = '0x0'
+	try:
+		b = os.getxattr(i, "security.capability")
+		cap = str(hex(int.from_bytes(b[4:8] + b[12:16], "little")))
+	except:
+		cap = '0x0'
 
-    perm = os.stat(i)
-    mode = str(oct(perm.st_mode))[-4:]
-    uid = str(perm.st_uid)
-    gid = str(perm.st_gid)
+	perm = os.stat(i)
+	mode = str(oct(perm.st_mode))[-4:]
+	uid = str(perm.st_uid)
+	gid = str(perm.st_gid)
 
-    if args.screen:
-        print(i.replace(indir, args.partition), uid, gid, mode, cap, con)
-    elif args.outfile:
-        with open(args.outfile, 'a', newline='\n') as text_file:
-            print(i.replace(indir, args.partition), uid, gid, mode, cap, con, file=text_file)
+	if args.screen:
+		print(i.replace(indir, args.partition), uid, gid, mode, cap, con)
+	elif args.outfile:
+		with open(args.outfile, 'a', newline='\n') as text_file:
+			print(i.replace(indir, args.partition), uid, gid, mode, cap, con, file=text_file)

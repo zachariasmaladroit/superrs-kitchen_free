@@ -2238,10 +2238,7 @@ deodex_start() {
 			fi
 		done
 		return
-	elif [[ $api -eq 23 && $androidversion = "N" ]] || [[ $api -ge 24 ]]; then
-		if [[ $androidversion = "O" ]]; then
-			api="26"
-		fi
+	elif [[ $api -eq 23 || $api -eq 24 || $api -eq 25 ]] && [[ $androidversion != "O" ]]; then
 		jarname="smali"
 		jartitle="$t_title_cho_smali"
 		choose_jartitle
@@ -2252,6 +2249,9 @@ deodex_start() {
 		choose_jartitle
 		baksmali="$thecho"
 		dtype="n2"
+		deodex
+	elif [[ $api -ge 25 ]]; then
+		dtype="o"
 		deodex
 	else
 		banner
@@ -2266,9 +2266,9 @@ deodex() {
 	arch2=""
 	while read i; do
 		if [[ -d "$framedir/$i" ]]; then
-            archtest="$i"
-            break
-        fi
+			archtest="$i"
+			break
+		fi
 	done <<< "$(echo -e "arm64\nx86_64\narm\nx86")"
 	if [[ $(echo "$archtest" | grep "64") ]]; then
 		arch2test=$(echo "$archtest" | sed 's/_64//; s/64$//')
@@ -2300,6 +2300,8 @@ deodex() {
 			echo -e "\t$(basename $baksmali)$normal"
 		elif [[ $dtype = "l" || $dtype = "m" ]]; then
 			echo -e "$bluet$t_deodex_method${greent}\t$(basename $oat2dex)$normal"
+		elif [[ $dtype = "o" ]]; then
+			echo -e "$bluet$t_deodex_method${greent}\t$(basename $vdexext)$normal"
 		fi
 		echo ""
 		read -n 1 -p "$t_deodex_continue_q" reply
@@ -2316,7 +2318,7 @@ deodex() {
 		app=""
 		for app in $(echo "$applist"); do
 			cd "$deoappdir/$app"
-        	app2=$(basename "$(find -name *.apk 2>/dev/null | head -n 1 | sed 's/\.apk$//')" 2>/dev/null)
+			app2=$(basename "$(find -name *.apk 2>/dev/null | head -n 1 | sed 's/\.apk$//')" 2>/dev/null)
 			if [[ ! -d $deoarch || ! -f $app2.apk ]]; then
 				continue
 			fi
@@ -2355,6 +2357,19 @@ deodex() {
 						classname=$(echo "$appclassdex" | cut -d"-" -f2)
 						mv $line $appclassdir/$classname
 					done
+				elif [[ $dtype = "o" ]]; then
+					cd $deoarch
+					$vdexext -i $app2.vdex >> $logs/deodex.log
+					if [[ ! -f $app2.apk_classes.dex ]]; then
+						echo "${deoappdir/$romdir/}/$app/$app2.apk" >> $logs/deodex_fail_list
+						rm -rf $app2.apk_classes*
+						continue
+					fi
+					
+					ls | grep ".apk_classes" | while read i; do
+						mv "$i" "$(echo ${i##*_})"
+					done
+					cd $deoappdir/$app
 				fi
 				($aapt add -fk "$app2.apk" "$deoarch"/classes*.dex 2>&1) >> $logs/zip.log
 				if [[ $dtype = "l" ]]; then
@@ -2684,16 +2699,66 @@ deodex() {
 			fi
 			mv $deoarch/$line $frame
 		done
+	elif [[ $dtype = "o" ]]; then
+		for d in $framedir/$arch $framedir/$arch2; do
+			cd "$d"
+			if [[ -f "boot.oat" && -f "boot.vdex" ]]; then
+				bootclass=$(strings boot.oat | tr ' ' '\n' 2>/dev/null | grep -m 1 '\-\-dex\-location=' | cut -d'=' -f2-)
+			fi
+			if [[ $bootclass && ! -f ${bootclass}__classes.dex ]]; then
+				nclass="$(echo "$bootclass" | sed 's/\.jar$/\.vdex/')"
+				mv boot.vdex boot-$(basename "$bootclass" | sed 's/\.jar$/\.vdex/')
+			fi
+			find -name "boot-*.vdex" | while read i; do
+				nname=$(echo "$i" | sed 's/^\.\///; s/^boot-//; s/\.vdex$//')
+				if [[ -f $framedir/$nname.jar__classes.dex ]]; then
+					continue
+				fi
+				echo ""
+				echo "$t_deodex_deodexing $(echo "$i" | sed 's/^\.\///')"
+				echo ""
+				mv "$i" "$nname.vdex"
+				$vdexext -i "$nname.vdex" >> $logs/deodex.log
+				if [[ ! $(ls | grep "$nname.apk_classes") ]]; then
+					echo "${d/$romdir/}/$nname.jar" >> $logs/deodex_fail_list
+					continue
+				fi
+				ls | grep "$nname.apk" | while read r; do
+					mv "$r" "$framedir/$(echo "$r" | sed 's/apk_/jar:/')"
+				done
+			done
+		done
+		for d in $framedir/oat/$arch $framedir/oat/$arch2; do
+			cd "$d"
+			ls | grep ".vdex$" | while read i; do
+				nname=$(echo "$i" | sed 's/\.vdex$//')
+				if [[ -f $framedir/$nname.jar__classes.dex ]]; then
+					continue
+				fi
+				echo ""
+				echo "$t_deodex_deodexing $i"
+				echo ""
+				$vdexext -i "$i" >> $logs/deodex.log
+				if [[ ! $(ls | grep ".apk_classes") ]]; then
+					echo "${d/$romdir/}/$nname.jar" >> $logs/deodex_fail_list
+					continue
+				fi
+				ls | grep "$nname.apk" | while read r; do
+					mv $r $framedir/$(echo "$r" | sed 's/apk_/jar:/')
+				done
+			done
+		done
 	fi
+	cd "$framedir"
 	banner
 	echo "$bluet$t_deodex_pack_jar$normal"
-    ls | grep "jar:classes.dex" | sort | while read line; do
-        jname=$(echo "$line" | cut -d':' -f1)
-		ls | grep "^${jname}:" | while read i; do
-            jclass=$(echo "$i" | cut -d':' -f2)
+	ls | grep "jar:classes.dex" | sort | while read line; do
+		jname=$(echo "$line" | cut -d':' -f1)
+		ls | grep -e "^${jname}.*classes" | while read i; do
+			jclass=$(echo "$i" | cut -d':' -f2)
 			mv "$i" "$jclass"
 		done
-        if [[ -f "classes.dex" ]]; then
+		if [[ -f "classes.dex" ]]; then
 			($aapt add -fk "$jname" classes*.dex 2>&1) >> $logs/zip.log
 		else
 			echo "ERROR: $jname has no classes.dex" >> $logs/deodex.log
@@ -3471,18 +3536,20 @@ extract_new() {
 				$p7z e $romzip $mainmd5 $cscmd5 2>/dev/null >> $logs/zip.log
 				banner
 				echo "$bluet$t_extract_img$normal"
-				if [[ $(tar -tf $mainmd5 | grep system.img.ext4) ]]; then
-					tar -xf $mainmd5 system.img.ext4 boot.img 2>/dev/null >> $logs/zip.log
-					mv system.img.ext4 system.img
-				elif [[ $(tar -tf $mainmd5 | grep system.img) ]]; then
-					tar -xf $mainmd5 system.img boot.img 2>/dev/null >> $logs/zip.log
-				fi
-				if [[ $(tar -tf $cscmd5 | grep cache.img.ext4) ]]; then
-					tar -xf $cscmd5 cache.img.ext4 2>/dev/null >> $logs/zip.log
-					mv cache.img.ext4 cache.img
-				elif [[ $(tar -tf $cscmd5 | grep cache.img) ]]; then
-					tar -xf $cscmd5 cache.img 2>/dev/null >> $logs/zip.log
-				fi
+				for i in "$mainmd5" "$cscmd5"; do
+					tarulist=$(tar -tf $i | grep -e ".*system.*\.img.*\|.*system.*ext4\|.*boot\.img\|.*cache.*\.img.*\|.*cache.*ext4")
+					echo "$tarulist" | while read line; do
+						tar -xf "$i" "$line" 2>/dev/null >> $logs/zip.log
+						if [[ $(echo "$line" | grep "\.lz4") ]]; then
+							"$lz4" "$line"
+							rm -f "$line"
+							line=$(echo "$line" | sed 's/\.lz4$//')
+						fi
+						if [[ $(echo "$line" | grep "\.ext4") ]]; then
+							mv "$line" "$(echo "$line" | cut -d'.' -f1).img"
+						fi
+					done
+				done
 				if [[ -f system.img ]]; then
 					rm -rf $mainmd5
 					rm -rf $cscmd5
@@ -4362,7 +4429,7 @@ grab_devices() {
 imgextract() {
 	banner
 	echo "$bluet$t_extract_sparse_convert$normal"
-	$simg2img ${extractimg}.img ${extractimg}.img-2 2>/dev/null
+	$simg2img ${extractimg}.img ${extractimg}.img-2 >/dev/null
 	if [[ ! -s ${extractimg}.img-2 ]]; then
 		rm -rf ${extractimg}.img-2
 	else
@@ -4478,7 +4545,7 @@ imgextract() {
 			fi
 		fi
 		${usesudo2}umount output/
-		rm -rf $romdir/output $prfiles/cap_temp $prfiles/set_meta_list $prfiles/tmpmetalist
+		rm -rf $romdir/output $prfiles/set_meta_list $prfiles/tmpmetalist
 	fi
 	extractimg=""
 }
@@ -5296,7 +5363,6 @@ partadd() {
 						sed -i "/#DATA/ r $tools/updater/data-set_metadata.txt" updater-script
 						touch $prfiles/data-set_metadata
 					fi
-					sed -i "s/#PARTDATA/$partbyname/" updater-script
 				done
 			fi
 		else
@@ -5322,7 +5388,6 @@ partadd() {
 					sed -i "s:$line:$line\n#$partup:" updater-script
 				fi
 				sed -i "/#$partup/ r $tools/updater/extra-set_metadata.txt" updater-script
-				sed -i "s/#PARTEXTRA/$partbyname/g" updater-script
 				sed -i "s/#PEXTRA/$whatimg/g" updater-script
 				touch $prfiles/${whatimg}img
 				if [[ $whatimg = "vendor" && -f $prfiles/set_metadataV ]]; then
@@ -5332,7 +5397,6 @@ partadd() {
 				gawk 'a=/\"system\",/{b=1}b&&!a{print "#DATA";b=0}1' updater-script > updater-script2
 				mv updater-script2 updater-script
 				sed -i "/#DATA/ r $tools/updater/data-set_metadata.txt" updater-script
-				sed -i "s/#PARTDATA/$partbyname/" updater-script
 				touch $prfiles/data-set_metadata
 			fi
 		fi
@@ -6543,9 +6607,13 @@ if [[ ! $cyg ]]; then
 	if [[ $(getconf LONG_BIT) = "64" ]]; then
 		make_ext4fs="$ttools/make_ext4fs_64"
 		simg2img="$ttools/simg2img_64"
+		vdexext="$ttools/vdexExtractor_64"
+		lz4="$tools/boot/AIK/bin/linux/x86_64/lz4"
 	else
 		make_ext4fs="$ttools/make_ext4fs_32"
 		simg2img="$ttools/simg2img_32"
+		vdexext="$ttools/vdexExtractor_32"
+		lz4="$tools/boot/AIK/bin/linux/i686/lz4"
 	fi
 else
 	make_ext4fs="$ttools/make_ext4fs.exe"
