@@ -15,7 +15,6 @@ aikdl() {
 	nname=$(echo "$dlinfo" | gawk '{print $1}')
 	fname=$(basename $(wget -qO- "https://basketbuild.com/devs/osm0sis/aik" | cat | grep ">Download<" | grep "AIK-Linux" | cut -d'"' -f4))
 	furl="https://basketbuild.com/uploads/devs/osm0sis/aik/$fname"
-	echo "$furl"
 	(wget -O "$nname" "$furl" 2>&1) >/dev/null
 }
 assert_devices() {
