@@ -10,6 +10,14 @@ banner() {
 	echo "------------------------------------------------------"
 	echo ""
 }
+aikdl() {
+	sterm=$(echo "$dlinfo" | gawk '{print $2}')
+	nname=$(echo "$dlinfo" | gawk '{print $1}')
+	fname=$(basename $(wget -qO- "https://basketbuild.com/devs/osm0sis/aik" | cat | grep ">Download<" | grep "AIK-Linux" | cut -d'"' -f4))
+	furl="https://basketbuild.com/uploads/devs/osm0sis/aik/$fname"
+	echo "$furl"
+	(wget -O "$nname" "$furl" 2>&1) >/dev/null
+}
 assert_devices() {
 	assertch=""
 	while [[ ! $assertch ]]; do
@@ -3032,14 +3040,6 @@ deodex_sqsh() {
 	sqshfile=""
 	cd $romdir
 }
-xdadev() {
-	fname=$(echo "$dlinfo" | gawk '{print $1}')
-	xdalink=$(echo "$dlinfo" | gawk '{print $2}')
-	sterm=$(echo "$dlinfo" | gawk '{print $3}')
-	ltmp=$(wget -qO- "$xdalink" | cat | grep "/devdb/project/dl" | grep -v "xdabutton" | gawk '{print $6}')
-	furl="https://forum.xda-developers.com$(echo "$ltmp" | grep "$sterm" | cut -d'"' -f2)&task=get"
-	(wget -O "$fname" "$furl" 2>&1) >/dev/null
-}
 xdareg() {
 	fname=$(echo "$dlinfo" | gawk '{print $1}')
 	xdalink=$(echo "$dlinfo" | gawk '{print $2}')
@@ -4569,8 +4569,8 @@ install_binaries() {
 		fi
 		if [[ ! -d $tools/boot/AIK ]]; then
 			cd $tools/boot
-			dlinfo="aik.tar.gz https://forum.xda-developers.com/devdb/project/?id=1568#downloads AIK-Linux"
-			xdadev
+			dlinfo="aik.tar.gz AIK-Linux"
+			aikdl
 			tar -xf aik.tar.gz 2>&1 >/dev/null
 			rm -rf aik.tar.gz
 			mv AIK-Linux AIK
@@ -4585,8 +4585,8 @@ install_binaries() {
 		if [[ ! -d $tools/boot/AIK2 ]]; then
 			mkdir -p $tools/boot/AIK2
 			cd $tools/boot/AIK2
-			dlinfo="aik2.zip https://forum.xda-developers.com/devdb/project/?id=1568#downloads Win32"
-			xdadev
+			dlinfo="aik2.zip Win32"
+			aikdl
 			$p7z x -y aik2.zip 2>&1 >/dev/null
 			rm -rf aik2.zip
 		fi
