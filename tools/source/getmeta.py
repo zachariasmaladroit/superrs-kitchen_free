@@ -28,6 +28,9 @@ for i in glob.glob(indir+'/**', recursive=True):
 	if os.path.islink(i):
 		continue
 
+	if i.endswith('/'):
+		i = i[:-1]
+
 	try:
 		b = os.getxattr(i, "security.selinux").replace(b'\x00', b'')
 		con = str(b.decode())

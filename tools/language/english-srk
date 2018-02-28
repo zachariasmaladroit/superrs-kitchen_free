@@ -169,6 +169,10 @@ export t_menu_initd="Add/Remove init.d support"
 export t_menu_insecure="Insecure/Secure the boot.img"
 export t_menu_dmverity="Remove dm-verity"
 export t_menu_forcee="Add/Remove forceencrypt"
+export t_menu_deopatch="Patch sepolicy for Oreo deodex"
+export t_menu_deopatch_add="sepolicy has been patched for Oreo deodex"
+export t_menu_deopatch_none="Could not find sepolicy"
+export t_menu_deopatch_fail="Patch failed, or sepolicy has already been patched"
 export t_menu_unpack="Unpack"
 export t_menu_boot_flashable="Build flashable"
 export t_menu_switch_boot="Switch between boot/recovery"
@@ -445,6 +449,7 @@ export t_byname_manual_info="You will need to enter the partition info in the\nu
 
 # Signature
 export t_sig_info="${bluet}The answer to this question will show when flashing\nthe zip and will be converted into the zip name when\nthe zip is built.$normal\n\nWhat is the name of your zip?"
+export t_sig_error="Do not use / in the zip name"
 export t_donate_sig_cust="${bluet}This one will show below the zip name when flashing where\nthe standard version said Built with SuperR's Kitchen.$normal\n\nWhat is your signature?"
 
 # Zip devices
@@ -487,6 +492,7 @@ export t_update_fail="There was a problem updating. If you modified\nany kitchen
 export t_update_q="Would you like to update now?  y/n  "
 export t_update_auto_q="Do you want to check for updates when the kitchen starts?  y/n  "
 export t_restart="The kitchen needs to restart"
+export t_tools_dl_failed="The tools download failed:"
 
 # New Project
 export t_new_q="Enter new project name (${yellowt}spaces will be replaced with _$normal):"

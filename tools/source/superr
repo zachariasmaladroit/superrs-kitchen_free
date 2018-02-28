@@ -13,9 +13,17 @@ banner() {
 aikdl() {
 	sterm=$(echo "$dlinfo" | gawk '{print $2}')
 	nname=$(echo "$dlinfo" | gawk '{print $1}')
-	fname=$(basename $(wget -qO- "https://basketbuild.com/devs/osm0sis/aik" | cat | grep ">Download<" | grep "AIK-Linux" | cut -d'"' -f4))
-	furl="https://basketbuild.com/uploads/devs/osm0sis/aik/$fname"
-	(wget -O "$nname" "$furl" 2>&1) >/dev/null
+	for i in \
+		"$(wget -qO- "https://forum.xda-developers.com/showthread.php?t=2073775" | cat | grep "$sterm\.zip\|$sterm-" | cut -d'"' -f2 | grep http)" \
+		"https://basketbuild.com/uploads/devs/osm0sis/aik/$(basename $(wget -qO- "https://basketbuild.com/devs/osm0sis/aik" | cat | grep ">Download<" | grep "$sterm" | cut -d'"' -f4))"\
+	; do
+		(wget -O "$nname" "$i" 2>&1) >/dev/null
+		if [[ -f "$nname" && $(file "$nname" | grep "Zip\|gzip") ]]; then
+			break
+		else
+			rm -rf "$nname"
+		fi
+	done
 }
 assert_devices() {
 	assertch=""
@@ -517,13 +525,14 @@ boot_tools() {
 					echo "3) $t_menu_insecure ($bluet$t_title_current$insecurestatus1$normal)"
 					echo "4) $t_menu_dmverity ($bluet$t_title_current$dmveritystatus1$normal)"
 					echo "5) $t_menu_forcee ($bluet$t_title_current$forceestatus1$normal)"
+					echo "6) $t_menu_deopatch"
 				fi
 				echo "${yellowt}m = $t_title_main"
 				echo "${magentat}q = $t_menu_quit$normal"
 				echo ""
 				read -n 1 -p "$t_select" choice
 				
-				if [[ ! ${choice} =~ ^[1-5]$ ]] && [[ ! $choice = "m" && ! $choice = "q" ]]; then
+				if [[ ! ${choice} =~ ^[1-6]$ ]] && [[ ! $choice = "m" && ! $choice = "q" ]]; then
 					choice=""
 					continue
 				elif [[ $choice = "m" ]]; then # START Main menu
@@ -580,6 +589,45 @@ boot_tools() {
 					fi
 					findfstab
 					boot_forcee
+					choice=""
+					continue
+				elif [[ $choice = "6" ]]; then # START Patch sepolicy for Oreo deodex
+					cd $romdir
+					sepol=$(${usesudo}find -name *sepolicy* 2>/dev/null | grep -v "test\|txt\|mapping")
+					if [[ $sepol ]]; then
+						sepgood=
+						while read i; do
+							omd5=$(md5sum "$i" | gawk '{print $1}')
+							if [[ $(echo "$i" | grep "\.cil$") ]]; then
+								line=$(grep "(allow zygote dalvikcache_data_file (file (" "$i")
+								if [[ $line ]]; then
+									if [[ ! $(echo "$line" | grep "execute") ]]; then
+										nline=$(echo "$line" | sed 's/)))/\ execute)))/')
+										sed -i "s/$line/$nline/" "$i"
+									fi
+								else
+									echo "(allow zygote dalvikcache_data_file (file (execute)))" >> "$i"
+								fi
+							else
+								$usesudo$ttools/bootimg seinject -s zygote -t dalvikcache_data_file -c file -p execute -P "$i" -o "$i" >> $logs/boot.log
+							fi
+							if [[ $(md5sum "$i" | gawk '{print $1}') != $omd5 ]]; then
+								sepgood=1
+								${usesudo}chown $myuser:$myuser "$i"
+							fi
+						done <<< "$(echo "$sepol")"
+						banner
+						if [[ $sepgood ]]; then
+							echo "$greent$t_menu_deopatch_add$normal"
+						else
+							echo "$redt$t_menu_deopatch_fail$normal"
+						fi
+					else
+						banner
+						echo "${redt}$t_menu_deopatch_none$normal"
+					fi
+					echo ""
+					read -p "$t_enter_boot_menu"
 					choice=""
 					continue
 				fi
@@ -2325,7 +2373,7 @@ deodex() {
 		app=""
 		for app in $(echo "$applist"); do
 			cd "$deoappdir/$app"
-			app2=$(basename "$(find -name *.apk 2>/dev/null | head -n 1 | sed 's/\.apk$//')" 2>/dev/null)
+			app2=$(ls | grep \.apk$ | head -n 1 | sed 's/\.apk$//')
 			if [[ ! -d $deoarch || ! -f $app2.apk ]]; then
 				continue
 			fi
@@ -3822,7 +3870,7 @@ extract_new() {
 									fi
 								fi
 							fi
-						elif [[ $(grep "$line2" $prfiles/exdirs 2>/dev/null) ]]; then
+						else
 							extractimg="$line2"
 							imgextract
 						fi
@@ -4323,10 +4371,18 @@ get_heapsize() {
 }
 get_sig() {
 	if [[ ! -f $prfiles/signature ]]; then
-		banner
-		echo -e "$bluet$t_sig_info$normal"
-		echo ""
-		read -e signature1
+		while [[ ! $signature1 ]]; do
+			banner
+			echo -e "$bluet$t_sig_info$normal"
+			echo ""
+			read -e signature1
+			if [[ $(echo "$signature1" | grep "/") ]]; then
+				banner
+				echo -e "$redt$t_sig_error$normal\n"
+				read -p "$t_enter_continue"
+				signature1=
+			fi
+		done
 		echo "$signature1" | sed 's/ /_/g; s:/:\\/:g' > $prfiles/signature
 		signature1=$(sed 's/_/ /g' $prfiles/signature)
 		signature=$(cat $prfiles/signature)
@@ -4504,41 +4560,53 @@ imgextract() {
 					sed -i "/#BIN/ r $prfiles/binblk" $prfiles/set_meta_list
 					sed -i "/#VBIN/ r $prfiles/vinblk" $prfiles/set_meta_list
 					rm -rf $prfiles/binblk $prfiles/vinblk
-					metalist=$(cat $prfiles/set_meta_list)
+					cat $prfiles/set_meta_list > $prfiles/tmpmetalist
 				elif [[ $extractimg = "vendor" ]]; then
-					if [[ $getmeta ]]; then
-						metalist=$(echo "$getmeta" | grep "^vendor/bin" | gawk '{print $1}' | sort)
-					else
-						metalist=$(cat $tools/updater/set_meta_listV)
-					fi
-				fi
-				echo "$metalist" > $prfiles/tmpmetalist
-				echo "$getmeta" | grep -v ":system_file\|:system_library_file\|:vendor_file\|vendor_configs_file\|vendor_app_file\|vendor_hal_file\|vendor_overlay_file\|vendor_framework_file\|same_process_hal_file\|:rootfs" | sort | while read line; do
+					cp $tools/updater/set_meta_listV $prfiles/tmpmetalist
+				fi				
+				echo "$getmeta" | grep -v ":${extractimg}_file" | sort | while read line; do
 					i=$(echo "$line" | gawk '{print $1}')
-					if [[ ! $(grep "$i" $prfiles/tmpmetalist) ]]; then
+					if [[ ! $(grep "$i$" $prfiles/tmpmetalist) ]]; then
+						echo "$i" >> $prfiles/tmpmetalist
+					fi
+				done
+				echo "$getmeta" | grep -v " 0x0 " | sort | while read line; do
+					i=$(echo "$line" | gawk '{print $1}')
+					if [[ ! $(grep "$i$" $prfiles/tmpmetalist) ]]; then
+						echo "$i" >> $prfiles/tmpmetalist
+					fi
+				done
+				echo "$getmeta" | grep -v "0644\ 0x0\ \|0755\ 0x0\ " | sort | while read line; do
+					i=$(echo "$line" | gawk '{print $1}')
+					if [[ ! $(grep "$i$" $prfiles/tmpmetalist) ]]; then
 						echo "$i" >> $prfiles/tmpmetalist
 					fi
 				done
 				cat $prfiles/tmpmetalist | while read line; do
+					line2=$(echo "$line" | sed 's/\ -R$//')
 					if [[ $extractimg = "system" ]]; then
 						set_metadata1="set_metadata1"
 					else
 						set_metadata1="set_metadataV"
 					fi
-					if [[ $(echo "$line" | grep set_metadata) ]]; then
-						ftmp=$(echo "$line" | cut -d'"' -f2 | sed 's:^\/::')
-						if [[ -f $ftmp || -d $ftmp ]]; then
-							echo "$line" >> $prfiles/$set_metadata1
-						fi
-					elif [[ -f $line ]]; then
-						local i=$(grep "^$line " <<< "$getmeta")
+					if [[ -f "$line2" || -d "$line2" ]]; then
+						local i=$(grep "^$line2 " <<< "$getmeta")
 						local thefile=$(echo "$i" | gawk '{print $1}')
 						local uid=$(echo "$i" | gawk '{print $2}')
 						local gid=$(echo "$i" | gawk '{print $3}')
 						local mode=$(echo "$i" | gawk '{print $4}')
 						local cap=$(echo "$i" | gawk '{print $5}')
 						local con=$(echo "$i" | gawk '{print $6}')
-						echo "set_metadata(\"/$thefile\", \"uid\", $uid, \"gid\", $gid, \"mode\", $mode, \"capabilities\", $cap, \"selabel\", \"$con\");" >> $prfiles/$set_metadata1
+						if [[ $(echo "$line" | grep " -R$") ]]; then
+							if [[ $(echo "$line2" | grep "/bin$\|/bin/") ]]; then
+								fmode="0755"
+							else
+								fmode="0644"
+							fi
+							echo "set_metadata_recursive(\"/$thefile\", \"uid\", $uid, \"gid\", $gid, \"dmode\", $mode, \"fmode\", $fmode, \"capabilities\", $cap, \"selabel\", \"$con\");" >> $prfiles/$set_metadata1
+						else
+							echo "set_metadata(\"/$thefile\", \"uid\", $uid, \"gid\", $gid, \"mode\", $mode, \"capabilities\", $cap, \"selabel\", \"$con\");" >> $prfiles/$set_metadata1
+						fi
 					fi
 				done
 			fi
@@ -4879,8 +4947,7 @@ kitchen_update() {
 	if [[ $internet = "0" ]]; then
 		banner
 		echo "$bluet$t_update_check_kitchen$normal"
-		kdlurl="$dlurl/changelog_standard"
-		newinfo=$(wget -qO- $kdlurl)
+		newinfo=$(wget -qO- "http://srk.ddayweb.com/filemanager.php?file=changelog1.txt" | sed 's:<br />::g')
 		newv=$(echo "$newinfo" | head -n 1)
 		changelog=$(echo "$newinfo" | head -n 8)
 		upcheck=$(echo "$newv" | sed 's/v//; s/\.//g')
@@ -5386,7 +5453,11 @@ partadd() {
 					line=$(grep "package_extract_dir(\"system\"" updater-script | sed 's/\"/\\"/g; s:\/:\\/:g')
 					sed -i "s:$line:$line\n#$partup:" updater-script
 				fi
-				sed -i "/#$partup/ r $tools/updater/extra-set_metadata.txt" updater-script
+				if [[ $whatimg = "vendor" ]]; then
+					sed -i "/#$partup/ r $tools/updater/vendor-set_metadata.txt" updater-script
+				else
+					sed -i "/#$partup/ r $tools/updater/extra-set_metadata.txt" updater-script
+				fi
 				sed -i "s/#PEXTRA/$whatimg/g" updater-script
 				touch $prfiles/${whatimg}img
 				if [[ $whatimg = "vendor" && -f $prfiles/set_metadataV ]]; then
@@ -6181,7 +6252,7 @@ update_project() {
 		fi
 		banner
 		echo "$bluet$t_startup_prep_updater_script$normal"
-		cd $usdir
+		cd $usdir		
 		if [[ ! $(grep -o "#ASSERT" updater-script) ]]; then
 			sed -i '1i#ASSERT' updater-script
 			grep " getprop(\|(getprop(" updater-script > $prfiles/assert_original
@@ -6198,11 +6269,7 @@ update_project() {
 			fi
 		fi
 		if [[ $permtype = "set_metadata" || $permtype = "set_perm" ]]; then
-			permtest=$(gawk '/#PERM/,/set_progress/' updater-script | grep $permtype)
-			if [[ $permtest ]]; then
-				grep -v "$permtest" updater-script > updater-script2
-				mv updater-script2 updater-script
-			fi
+			sed -i '/^#PERM/,/^set_progress/{//!d}' updater-script
 		fi
 		grep -v " getprop(\|(getprop(\|^symlink" updater-script > updater-script2
 		mv updater-script2 updater-script
