@@ -4298,24 +4298,27 @@ get_byname() {
 get_contexts() {
 	docon() {
 		if [[ ! -f $prfiles/file_contexts ]]; then
-			if [[ -f $romdir/system/file_contexts.bin ]]; then
-				cp $romdir/system/file_contexts.bin $prfiles/
-			elif [[ -f $romdir/${chosenimg}img/ramdisk/file_contexts ]]; then
-				${usesudo}cp $romdir/${chosenimg}img/ramdisk/file_contexts $prfiles/
-			elif [[ -f $romdir/${chosenimg}img/ramdisk/file_contexts.bin ]]; then
-				${usesudo}cp $romdir/${chosenimg}img/ramdisk/file_contexts.bin $prfiles/
-			elif [[ -f $romdir/${chosenimg}img/ramdisk/plat_file_contexts ]]; then
-				${usesudo}cp $romdir/${chosenimg}img/ramdisk/plat_file_contexts $prfiles/file_contexts
-				${usesudo}chown -h $myuser:$myuser $prfiles/file_contexts
-				nonplat=$(${usesudo}cat $romdir/${chosenimg}img/ramdisk/nonplat_file_contexts)
-				echo "$nonplat" >> $prfiles/file_contexts
-			elif [[ -f $romdir/output/file_contexts.bin ]]; then
-				cp $romdir/output/file_contexts.bin $prfiles/
-			elif [[ -f $romdir/output/file_contexts ]]; then
-				cp $romdir/output/file_contexts $prfiles/
-			elif [[ -f $romdir/system/file_contexts ]]; then
-				cp $romdir/system/file_contexts $prfiles/
-			fi
+			local c="/file_contexts"
+			local b="/file_contexts.bin"
+			local p="/plat_file_contexts"
+			local n="/nonplat_file_contexts"
+			
+			for f in "$romdir/system" "$romdir/system/system" "$romdir/bootimg/ramdisk" "$romdir/recoveryimg/ramdisk" "$romdir/system/etc/selinux" "$romdir/system/system/etc/selinux" "$romdir/vendor/etc/selinux" "$romdir/output"; do
+				if [[ -f "$f$c" ]]; then
+					${usesudo}cp "$f$c" "$prfiles/"
+					break
+				fi
+				if [[ -f "$f$b" ]]; then
+					${usesudo}cp "$f$b" "$prfiles/"
+					break
+				fi
+				if [[ -f "$f$p" ]]; then
+					cat "$f$p" >> "$prfiles$c"
+				fi
+				if [[ -f "$f$n" ]]; then
+					cat "$f$n" >> "$prfiles$c"
+				fi
+			done
 		fi
 	}
 	docon
@@ -4535,6 +4538,8 @@ imgextract() {
 		else
 			apitemp=""
 		fi
+		banner
+		echo "$bluet$t_cust_prep$normal"
 		if [[ $apitmp -ge "19" ]]; then
 			local getmeta=$($tools/source/getmeta.py -s "$romdir/output" "$extractimg")
 			if [[ $extractimg = "system" || $extractimg = "vendor" ]]; then

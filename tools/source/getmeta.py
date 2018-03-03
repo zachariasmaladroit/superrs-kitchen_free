@@ -24,6 +24,7 @@ if not glob.glob(indir+'/*'):
 	print('\n'+indir+' does not exist or is empty.\n')
 	sys.exit()
 
+full = []
 for i in glob.glob(indir+'/**', recursive=True):
 	if os.path.islink(i):
 		continue
@@ -32,8 +33,8 @@ for i in glob.glob(indir+'/**', recursive=True):
 		i = i[:-1]
 
 	try:
-		b = os.getxattr(i, "security.selinux").replace(b'\x00', b'')
-		con = str(b.decode())
+		b = os.getxattr(i, "security.selinux")[:-1]
+		con = str(b.decode('utf8'))
 	except:
 		con = 'u:object_r:'+args.partition+'_file:s0'
 
@@ -48,8 +49,12 @@ for i in glob.glob(indir+'/**', recursive=True):
 	uid = str(perm.st_uid)
 	gid = str(perm.st_gid)
 
-	if args.screen:
-		print(i.replace(indir, args.partition), uid, gid, mode, cap, con)
-	elif args.outfile:
-		with open(args.outfile, 'a', newline='\n') as text_file:
-			print(i.replace(indir, args.partition), uid, gid, mode, cap, con, file=text_file)
+	full.append(' '.join([i.replace(indir, args.partition), uid, gid, mode, cap, con]))
+
+full = sorted(full)
+
+if args.screen:
+	print('\n'.join(full))
+elif args.outfile:
+	with open(args.outfile, 'a', newline='\n') as text_file:
+		print('\n'.join(full), file=text_file)
