@@ -4602,7 +4602,7 @@ imgextract() {
 				elif [[ $extractimg = "vendor" ]]; then
 					cp $tools/updater/set_meta_listV $prfiles/tmpmetalist
 				fi				
-				echo "$getmeta" | grep -v $(grep "$extractimg " <<< "$getmeta" | cut -d':' -f3) | sort | while read line; do
+				echo "$getmeta" | grep -v "$(grep "$extractimg " <<< "$getmeta" | cut -d':' -f3)" | sort | while read line; do
 					i=$(echo "$line" | gawk '{print $1}')
 					if [[ ! $(grep "$i$" $prfiles/tmpmetalist) ]]; then
 						echo "$i" >> $prfiles/tmpmetalist
