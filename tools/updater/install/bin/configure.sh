@@ -53,15 +53,18 @@ for i in ramdisk RAMDISK ramdisk_a ramdisk_b; do
 		break
 	fi
 done
+for i in recovery RECOVERY recovery_a recovery_b; do
+	if [ $(readlink $byname2/$i) ]; then
+		echo "recovery=$byname2/$i$SLOT" >> /tmp/config
+		break
+	fi
+done
 if [ $(readlink $byname2/version) ]; then
 	echo "version=$byname2/version$SLOT" >> /tmp/config
-	break
 fi
 if [ $(readlink $byname2/product) ]; then
 	echo "product=$byname2/product$SLOT" >> /tmp/config
-	break
 fi
 if [ $(readlink $byname2/cust) ]; then
 	echo "cust=$byname2/cust$SLOT" >> /tmp/config
-	break
 fi
