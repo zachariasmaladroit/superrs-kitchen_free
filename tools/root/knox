@@ -19,8 +19,6 @@ system/container*
 system/etc/secure_storage/com.sec.knox*
 system/etc/permissions/knoxsdk_mdm.xml
 system/etc/permissions/knoxsdk_edm.xml
-system/framework/knoxvpnuidtag.jar
-system/framework/knoxsdk.jar
 system/preloadedkiosk*
 system/preloadedmdm*
 system/preloadedsso*

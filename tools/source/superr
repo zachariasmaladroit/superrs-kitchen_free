@@ -610,11 +610,13 @@ boot_tools() {
 								else
 									znames=$(grep -e "(allow zygote.*" "$i" | cut -d' ' -f2 | sort -u)
 									dnames=$(grep -e "(allow .*dalvikcache_data_file.*" "$i" | cut -d' ' -f3 | sort -u)
-									while read z; do
-										while read d; do
-											echo "(allow $z $d (file (execute)))" >> "$i"
-										done <<< "$dnames"
-									done <<< "$znames"
+									if [[ $znames && $dnames ]]; then
+										while read z; do
+											while read d; do
+												echo "(allow $z $d (file (execute)))" >> "$i"
+											done <<< "$dnames"
+										done <<< "$znames"
+									fi
 								fi
 							else
 								dumpf=$($usesudo$ttools/bootimg seinject -dt -P "$i")
