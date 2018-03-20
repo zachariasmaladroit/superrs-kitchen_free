@@ -13,17 +13,11 @@ banner() {
 aikdl() {
 	sterm=$(echo "$dlinfo" | gawk '{print $2}')
 	nname=$(echo "$dlinfo" | gawk '{print $1}')
-	for i in \
-		"$(wget -qO- "https://forum.xda-developers.com/showthread.php?t=2073775" | cat | grep "$sterm\.zip\|$sterm-" | cut -d'"' -f2 | grep http)" \
-		"https://basketbuild.com/uploads/devs/osm0sis/aik/$(basename $(wget -qO- "https://basketbuild.com/devs/osm0sis/aik" | cat | grep ">Download<" | grep "$sterm" | cut -d'"' -f4))"\
-	; do
-		(wget -O "$nname" "$i" 2>&1) >/dev/null
-		if [[ -f "$nname" && $(file "$nname" | grep "Zip\|gzip") ]]; then
-			break
-		else
-			rm -rf "$nname"
-		fi
-	done
+	dlfile=$(wget -qO- "https://forum.xda-developers.com/showthread.php?t=2073775" | cat | grep "$sterm\.zip\|$sterm-" | cut -d'"' -f2 | grep http)
+	(wget -O "$nname" "$dlfile" 2>&1) >/dev/null
+	if [[ ! -f "$nname" || ! $(file "$nname" | grep "Zip\|gzip") ]]; then
+		rm -rf "$nname"
+	fi
 }
 assert_devices() {
 	assertch=""
@@ -151,15 +145,12 @@ boot_dmverity() {
 	if [[ $fstab != 1 && -f "$fstab" ]]; then
 		banner
 		echo "${bluet}Removing dm-verity from ramdisk ...$normal"
-		${usesudo}$tools/source/rmverity.py $fstab >> $logs/boot.log
-		if [[ ! $(echo "$fstab" | grep "bootimg\|recoveryimg") ]]; then
-			${usesudo}chown -h $myuser:$myuser $fstab
-		fi
+		${usesudo}python3 $tools/source/rmverity.py $fstab >> $logs/boot.log
 	fi
 	if [[ -f $romdir/${chosenimg}img/split_img/${chosenimg}.img-zImage ]]; then
 		banner
 		echo "${bluet}Removing dm-verity from dtb ...$normal"
-		${usesudo}$tools/source/rmverity.py $romdir/${chosenimg}img/split_img/${chosenimg}.img-zImage >> $logs/boot.log
+		${usesudo}python3 $tools/source/rmverity.py $romdir/${chosenimg}img/split_img/${chosenimg}.img-zImage >> $logs/boot.log
 	fi
 }
 boot_forcee() {
@@ -175,9 +166,6 @@ boot_forcee() {
 		for i in $fetmp; do
 			if [[ $(${usesudo}grep "/data" $fstab | grep "$i") ]]; then
 				${usesudo}sed -i "/\/data/s/$i/encryptable/g" $fstab
-				if [[ ! $(echo "$fstab" | grep "bootimg\|recoveryimg") ]]; then
-					${usesudo}chown -h $myuser:$myuser $fstab
-				fi
 				touch $prfiles/$i
 			fi
 		done
@@ -364,11 +352,13 @@ boot_repack() {
 		rm -rf $romdir/${chosenimg}img
 	fi
 	if [[ $islg = "lge" ]]; then
-		$tools/open_bump.py $chosenimg.img
-		mv ${chosenimg}_bumped.img $chosenimg.img
-		if [[ ! $bootext ]]; then
-			echo "$greent$t_boot_bump_rename $chosenimg.img$normal"
-			echo ""
+		if [[ -f $tools/open_bump.py ]]; then
+			python3 $tools/open_bump.py $chosenimg.img
+			mv ${chosenimg}_bumped.img $chosenimg.img
+			if [[ ! $bootext ]]; then
+				echo "$greent$t_boot_bump_rename $chosenimg.img$normal"
+				echo ""
+			fi
 		fi
 	fi
 	if [[ ! $bootext ]]; then
@@ -451,10 +441,10 @@ boot_tools() {
 				bumpedr=""
 				cd $romdir
 				if [[ -f $romdir/recovery.img ]]; then
-					bumpedr=$($tools/open_bump.py recovery.img | grep "already bumped")
+					bumpedr=$(python3 $tools/open_bump.py recovery.img | grep "already bumped")
 					rm -rf recovery_bumped.img
 				else
-					bumped=$($tools/open_bump.py boot.img | grep "already bumped")
+					bumped=$(python3 $tools/open_bump.py boot.img | grep "already bumped")
 					rm -rf boot_bumped.img
 				fi
 				if [[ $bumped ]]; then
@@ -565,15 +555,6 @@ boot_tools() {
 					continue
 				elif [[ $choice = "4" ]]; then # START Remove dm-verity
 					findfstab
-					# if [[ ! $(${usesudo}grep "verify" $fstab) ]]; then
-					# 	banner
-					# 	echo "${redb}${yellowt}${bold}$t_notice$normal"
-					# 	echo "$redt$t_boot_already_dmverity$normal"
-					# 	echo ""
-					# 	read -p "$t_enter_boot_menu"
-					# 	choice=""
-					# 	continue
-					# fi
 					boot_dmverity
 					banner
 					echo "$greent$t_boot_dmverity_rem$normal"
@@ -3556,7 +3537,7 @@ extract_new() {
 					fi
 					banner
 					echo "$bluet$t_extract_convert_sys $line.img ...$normal"
-					$ttools/sdat2img.py $line.transfer.list $line.new.dat $line.img > $logs/main.log
+					python3 $ttools/sdat2img.py $line.transfer.list $line.new.dat $line.img > $logs/main.log
 					rm -rf $line.transfer.list $line.new.dat
 				done
 				romzip=""
@@ -3704,7 +3685,7 @@ extract_new() {
 				rm -rf *chunk*
 				banner
 				echo "$bluet$t_extract_fix_img$normal"
-				$tools/source/fixmoto.py system.img.raw system.img >> $logs/main.log
+				python3 $tools/source/fixmoto.py system.img.raw system.img >> $logs/main.log
 				if [[ -f system.img ]]; then
 					rm -rf system.img.raw
 				else
@@ -4576,7 +4557,7 @@ imgextract() {
 		banner
 		echo "$bluet$t_cust_prep$normal"
 		if [[ $apitmp -ge "19" ]]; then
-			local getmeta=$($tools/source/getmeta.py -s "$romdir/output" "$extractimg")
+			local getmeta=$(python3 $tools/source/getmeta.py -s "$romdir/output" "$extractimg")
 			if [[ $extractimg = "system" || $extractimg = "vendor" ]]; then
 				if [[ $extractimg = "system" ]]; then
 					if [[ -f output/init.rc && -d output/system/app ]]; then
@@ -4817,7 +4798,7 @@ isdmverity() {
 		return 1
 	fi
 	findfstab
-	vdtb=$($tools/source/rmverity.py -s $romdir/${chosenimg}img/split_img/${chosenimg}.img-zImage)
+	vdtb=$(python3 $tools/source/rmverity.py -s $romdir/${chosenimg}img/split_img/${chosenimg}.img-zImage)
 	vfstab=""
 	if [[ $fstab != 1 ]]; then
 		vfstab=$(${usesudo}grep "verify" $fstab)
@@ -5537,7 +5518,7 @@ partsdat() {
 		aver="4"
 	fi
 	cd $romdir
-	( $tools/img2sdat/img2sdat.py ${whatimg}_new.img $romdir/tmpsparse $aver 2>&1 ) >> $logs/main.log
+	( python3 $tools/img2sdat/img2sdat.py ${whatimg}_new.img $romdir/tmpsparse $aver 2>&1 ) >> $logs/main.log
 	rm -rf ${whatimg}_new.img
 	cd $romdir/tmpsparse
 	if [[ ! $whatimg = "system" ]]; then

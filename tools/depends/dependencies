@@ -22,7 +22,6 @@ mkdir
 mount
 mv
 paste
-python2
 python3
 rev
 rm
