@@ -194,82 +194,6 @@ boot_forcee() {
 	fi
 	return
 }
-boot_initd() {
-	if [[ $chosenimg = "recovery" ]]; then
-		banner
-		echo "$redb$yellowt$bold$t_error$normal"
-		echo "$redt$t_boot_warn$normal"
-		echo ""
-		read -p "$t_enter_boot_menu"
-		return
-	fi
-	if [[ -f $romdir/system/init.rc ]]; then
-		banner
-		echo "$redb$yellowt$bold$t_error$normal"
-		echo -e "$redt$t_boot_initd_pixel$normal"
-		echo ""
-		read -p "$t_enter_boot_menu"
-		return
-	fi
-	if [[ $initdstatus = "No" ]]; then
-		${usesudo}cp -r $tools/boot/initd/bootimg $romdir/
-		${usesudo}sed -i '1iimport /init.d_support.sh' $ramdir/init.rc
-		mkdir -p $sysdir/etc/init.d
-		touch $sysdir/etc/init.d/placeholder
-		if [[ -d $prfiles/init.d ]]; then
-			rm -rf $sysdir/etc/init.d
-			mv $prfiles/init.d $sysdir/etc/
-		fi
-		banner
-		echo "$greent$t_boot_initd_add$normal"
-		echo ""
-		read -p "$t_enter_boot_menu"
-		return
-	elif [[ $initdstatus = "Yes" ]]; then
-		banner
-		echo "$greent$t_boot_already_initd$normal"
-		echo ""
-		read -n 1 -p "$t_boot_initd_rem_q"
-		echo ""
-		echo ""
-		if [[ $REPLY = "y" ]]; then
-			if [[ -d $sysdir/etc/init.d ]]; then
-				mv $sysdir/etc/init.d $prfiles/
-			fi
-			if [[ -f $sysdir/bin/sysinit && $(grep "init.d" $sysdir/bin/sysinit) ]]; then
-				rm -rf $sysdir/bin/sysinit
-			fi
-			cd $ramdir
-			rm -rf $sysdir/etc/init.d
-			${usesudo}rm -rf $ramdir/sbin/sysinit.sh
-			${usesudo}rm -rf $ramdir/init.d_support.sh
-			${usesudo}grep -v "init.d_support" init.rc | ${usesudo}tee init.rc2 >/dev/null
-			if [[ -f init.rc2 ]]; then
-				${usesudo}mv init.rc2 init.rc
-				${usesudo}sed -i "s/[[:blank:]]*$//" init.rc
-				${usesudo}gawk 'BEGIN{x=1} /init.d/{x=!x;next} x{print}' init.rc | ${usesudo}tee init.rc2 >/dev/null
-				${usesudo}sed -i '${/^$/d;}' init.rc2
-				${usesudo}mv init.rc2 init.rc
-			fi
-			isinitd
-			if [[ $initdstatus = "Yes" ]]; then
-				banner
-				echo "$redb$yellowt$bold$t_error$normal"
-				echo "$redt$t_boot_initd_cant$normal"
-				echo ""
-				read -p "$t_enter_boot_menu"
-				return
-			fi
-			banner
-			echo "$greent$t_boot_initd_rem$normal"
-			echo ""
-			read -p "$t_enter_boot_menu"
-			return
-		else
-			return
-		fi
-	fi
-}
 boot_insecure() {
 	if [[ $chosenimg = "recovery" ]]; then
 		banner
@@ -333,7 +257,7 @@ boot_repack() {
 	${usesudo}mv $romdir/${chosenimg}img/ramdisk $AIK/
 	${usesudo}mv $romdir/${chosenimg}img/split_img $AIK/
 	cd $AIK
-	${usesudo}./repackimg.$script 2>&1 >> $logs/boot.log
+	${usesudo}./repackimg.sh 2>&1 >> $logs/boot.log
 	if [[ $? = "1" ]]; then
 		${usesudo}mv $AIK/ramdisk $romdir/${chosenimg}img/
 		${usesudo}mv $AIK/split_img $romdir/${chosenimg}img/
@@ -416,9 +340,7 @@ boot_tools() {
 		dmveritystatus1=""
 		forceestatus1=""
 		insecurestatus=""
-		initdstatus=""
 		insecurestatus1=""
-		initdstatus1=""
 		islg=""
 		if [[ -f $sysdir/build.prop ]]; then
 			api=$(grep "ro.build.version.sdk" $sysdir/build.prop | cut -d"=" -f2)
@@ -498,7 +420,6 @@ boot_tools() {
 			while [[ ! $choice ]]; do
 				isdmverity
 				isforcee
-				isinitd
 				isinsecure
 
 				banner
@@ -511,18 +432,17 @@ boot_tools() {
 					echo "1) $t_menu_pack_boot $chosenimg2"
 				fi
 				if [[ $chosenimg = "boot" ]]; then
-					echo "2) $t_menu_initd ($bluet$t_title_current$initdstatus1$normal)"
-					echo "3) $t_menu_insecure ($bluet$t_title_current$insecurestatus1$normal)"
-					echo "4) $t_menu_dmverity ($bluet$t_title_current$dmveritystatus1$normal)"
-					echo "5) $t_menu_forcee ($bluet$t_title_current$forceestatus1$normal)"
-					echo "6) $t_menu_deopatch"
+					echo "2) $t_menu_insecure ($bluet$t_title_current$insecurestatus1$normal)"
+					echo "3) $t_menu_dmverity ($bluet$t_title_current$dmveritystatus1$normal)"
+					echo "4) $t_menu_forcee ($bluet$t_title_current$forceestatus1$normal)"
+					echo "5) $t_menu_deopatch"
 				fi
 				echo "${yellowt}m = $t_title_main"
 				echo "${magentat}q = $t_menu_quit$normal"
 				echo ""
 				read -n 1 -p "$t_select" choice
 				
-				if [[ ! ${choice} =~ ^[1-6]$ ]] && [[ ! $choice = "m" && ! $choice = "q" ]]; then
+				if [[ ! ${choice} =~ ^[1-5]$ ]] && [[ ! $choice = "m" && ! $choice = "q" ]]; then
 					choice=""
 					continue
 				elif [[ $choice = "m" ]]; then # START Main menu
@@ -545,15 +465,11 @@ boot_tools() {
 				fi
 				if [[ $choice = "1" ]]; then # START Pack img, delete ramdisk
 					boot_repack
-				elif [[ $choice = "2" ]]; then # START Add/Remove init.d support
-					boot_initd
-					choice=""
-					continue
-				elif [[ $choice = "3" ]]; then # START Insecure/Secure the boot.img
+				elif [[ $choice = "2" ]]; then # START Insecure/Secure the boot.img
 					boot_insecure
 					choice=""
 					continue
-				elif [[ $choice = "4" ]]; then # START Remove dm-verity
+				elif [[ $choice = "3" ]]; then # START Remove dm-verity
 					findfstab
 					boot_dmverity
 					banner
@@ -562,7 +478,7 @@ boot_tools() {
 					read -p "$t_enter_boot_menu"
 					choice=""
 					continue
-				elif [[ $choice = "5" ]]; then # START Remove forceencrypt
+				elif [[ $choice = "4" ]]; then # START Remove forceencrypt
 					if [[ -f $romdir/system/init.rc ]]; then
 						cd $romdir/system
 					else
@@ -572,7 +488,7 @@ boot_tools() {
 					boot_forcee
 					choice=""
 					continue
-				elif [[ $choice = "6" ]]; then # START Patch sepolicy for Oreo deodex
+				elif [[ $choice = "5" ]]; then # START Patch sepolicy for Oreo deodex
 					cd $romdir
 					sepol=$(${usesudo}find -name *sepolicy* 2>/dev/null | grep -v "test\|txt\|mapping")
 					if [[ $sepol ]]; then
@@ -720,11 +636,7 @@ boot_tools() {
 					elif [[ $chosenimg = "boot" ]]; then
 						signature2=$(echo "$signature-kernel")
 						signature3=$(echo "$signature1 Kernel")
-						if [[ -d $sysdir/etc/init.d ]]; then
-							cp $tools/updater/custom/updater-script-kernel-init $usdir/updater-script
-						else
-							cp $tools/updater/custom/updater-script-kernel $usdir/updater-script
-						fi
+						cp $tools/updater/custom/updater-script-kernel $usdir/updater-script
 					fi
 					part_setup
 					devname1=$(echo "$devicename" | sed 's/\ /\\ /g')
@@ -759,11 +671,7 @@ boot_tools() {
 						if [[ -f $signature2.zip ]]; then
 							mv $signature2.zip ${signature2}_$timestamp.zip
 						fi
-						if [[ -d $sysdir/etc/init.d ]]; then
-							$p7z a -tzip -mx5 $signature2.zip install boot.img system/etc/init.d META-INF 2>/dev/null >> $logs/zip.log
-						else
-							$p7z a -tzip -mx5 $signature2.zip install boot.img META-INF 2>/dev/null >> $logs/zip.log
-						fi
+						$p7z a -tzip -mx5 $signature2.zip install boot.img META-INF 2>/dev/null >> $logs/zip.log
 					else
 						rm -rf $romdir/META-INF
 						if [[ -d $romdir/META-INF1 ]]; then
@@ -811,7 +719,7 @@ boot_unpack() {
 	if [[ -f $romdir/$chosenimg2 ]]; then
 		mkdir -p $romdir/${chosenimg}img
 		cd $AIK
-		${usesudo}./unpackimg.$script $romdir/$chosenimg2 2>&1 >> $logs/boot.log
+		${usesudo}./unpackimg.sh $romdir/$chosenimg2 2>&1 >> $logs/boot.log
 		if [[ $? = "1" ]]; then
 			rm -rf $romdir/${chosenimg}img ramdisk split_img
 			banner
@@ -3901,19 +3809,17 @@ extract_new() {
 				cp -R $tools/updater/META-INF $romdir/
 				cp -R $tools/updater/install $romdir/
 				cd $romdir
-				if [[ ! $cyg ]]; then
-					link1=$(find system vendor -type l -printf "%l\n" 2>/dev/null | sed 's/^/symlink(\"/; s/$/\", /')
-					link2=$(find system vendor -type l 2>/dev/null | sed 's/^/\"\//; s/$/\");/')
-					paste -d '' <(echo "$link1") <(echo "$link2") | sort > $prfiles/symlinks
-					if [[ $(grep "symlink(\"egl/" $prfiles/symlinks) ]]; then
-						sed -i 's/symlink(\"egl/symlink(\"\/egl/' $prfiles/symlinks
-					fi
-					cp $prfiles/symlinks $prfiles/symlinks.orig
-					if [[ -d vendor ]]; then
-						find system vendor -type l -exec rm -f {} \;
-					else
-						find system -type l -exec rm -f {} \;
-					fi
+				link1=$(find system vendor -type l -printf "%l\n" 2>/dev/null | sed 's/^/symlink(\"/; s/$/\", /')
+				link2=$(find system vendor -type l 2>/dev/null | sed 's/^/\"\//; s/$/\");/')
+				paste -d '' <(echo "$link1") <(echo "$link2") | sort > $prfiles/symlinks
+				if [[ $(grep "symlink(\"egl/" $prfiles/symlinks) ]]; then
+					sed -i 's/symlink(\"egl/symlink(\"\/egl/' $prfiles/symlinks
+				fi
+				cp $prfiles/symlinks $prfiles/symlinks.orig
+				if [[ -d vendor ]]; then
+					find system vendor -type l -exec rm -f {} \;
+				else
+					find system -type l -exec rm -f {} \;
 				fi
 				rm -rf debloat_test debloat_test_custom
 				update_project
@@ -4510,131 +4416,101 @@ imgextract() {
 		mv ${extractimg}.img-2 ${extractimg}.img
 	fi
 	banner
-	if [[ $cyg || $bashwin ]]; then
-		echo "$bluet$t_extract_copy_e ${extractimg} ...$normal"
-		$imgextractor ${extractimg}.img ${extractimg} 2>&1 >/dev/null
-		gawk '{print $1, $5}' ${extractimg}_statfile.txt | grep ". ." > symtest
-		link1=$(gawk '{print $2}' symtest | sed 's/^/symlink(\"/; s/$/\", /')
-		link2=$(gawk '{print $1}' symtest | sed 's/^/\"\//; s/$/\");/')
-		paste -d '' <(echo "$link1") <(echo "$link2") | sort > $prfiles/symlinks
-		cp $prfiles/symlinks $prfiles/symlinks.orig
-		gawk '{print $1}' symtest | while read line; do
-			rm -rf $line
-		done
-		if [[ -f system/build.prop ]]; then
-			get_contexts
-			cp ${extractimg}_statfile.txt >> ${extractimg}_statfile
-			gawk '{print $1}' symtest | while read line; do
-				grep -v "$line" ${extractimg}_statfile > ${extractimg}_statfile2
-				mv ${extractimg}_statfile2 ${extractimg}_statfile
-			done
-			grep -v "system/system/" ${extractimg}_statfile | while read line; do
-				cyfile=$(echo "$line" | gawk '{print $1}')
-				cyuid=$(echo "$line" | gawk '{print $2}')
-				cygid=$(echo "$line" | gawk '{print $3}')
-				cymode=$(echo "$line" | gawk '{print $4}')
-				cycon=$(sed 's:\\::g' $prfiles/file_contexts | grep "lost+found" | gawk '{print $2}')
-				echo "set_metadata(\"/$cyfile\", \"uid\", $cyuid, \"gid\", $cygid, \"mode\", $cymode, \"capabilities\", 0x0, \"selabel\", \"$cycon\");" >> $prfiles/root_meta
-			done
-		fi
-		rm -rf ${extractimg}_statfile.txt symtest ${extractimg}_statfile
+	echo "$bluet$t_extract_mount_e ${extractimg}.img ...$normal"
+	mkdir output
+	${usesudo2}mount -t ext4 -o loop ${extractimg}.img output/
+	banner
+	echo "$bluet$t_extract_copy_e ${extractimg} ...$normal"
+	mkdir ${extractimg}
+	${usesudo2}cp -R output/* ${extractimg}/
+	${usesudo2}chown -hR $myuser:$myuser $romdir/${extractimg}
+	${usesudo2}chmod -R a+rwX $romdir/${extractimg}
+	apitmp1=$(find system -name build.prop 2>/dev/null | grep -m 1 "")
+	if [[ -f $apitmp1 ]]; then
+		apitmp=$(grep "ro.build.version.sdk" "$apitmp1" | cut -d"=" -f2)
 	else
-		echo "$bluet$t_extract_mount_e ${extractimg}.img ...$normal"
-		mkdir output
-		${usesudo2}mount -t ext4 -o loop ${extractimg}.img output/
-		banner
-		echo "$bluet$t_extract_copy_e ${extractimg} ...$normal"
-		mkdir ${extractimg}
-		${usesudo2}cp -R output/* ${extractimg}/
-		${usesudo2}chown -hR $myuser:$myuser $romdir/${extractimg}
-		${usesudo2}chmod -R a+rwX $romdir/${extractimg}
-		apitmp1=$(find system -name build.prop 2>/dev/null | grep -m 1 "")
-		if [[ -f $apitmp1 ]]; then
-			apitmp=$(grep "ro.build.version.sdk" "$apitmp1" | cut -d"=" -f2)
-		else
-			apitemp=""
-		fi
-		banner
-		echo "$bluet$t_cust_prep$normal"
-		if [[ $apitmp -ge "19" ]]; then
-			local getmeta=$(python3 $tools/source/getmeta.py -s "$romdir/output" "$extractimg")
-			if [[ $extractimg = "system" || $extractimg = "vendor" ]]; then
-				if [[ $extractimg = "system" ]]; then
-					if [[ -f output/init.rc && -d output/system/app ]]; then
-						echo "$getmeta" | grep -v "system/system\|system/ " | while read i; do
-							local thefile=$(echo "$i" | gawk '{print $1}')
-							local uid=$(echo "$i" | gawk '{print $2}')
-							local gid=$(echo "$i" | gawk '{print $3}')
-							local mode=$(echo "$i" | gawk '{print $4}')
-							local cap=$(echo "$i" | gawk '{print $5}')
-							local con=$(echo "$i" | gawk '{print $6}')
-							echo "set_metadata(\"/$thefile\", \"uid\", $uid, \"gid\", $gid, \"mode\", $mode, \"capabilities\", $cap, \"selabel\", \"$con\");" >> $prfiles/root_meta
-						done
-						find output/system/bin -type f 2>/dev/null | sed 's/^output/system/' | sort > $prfiles/binblk
-						find output/system/vendor/bin -type f 2>/dev/null | sed 's/^output/system/' | sort > $prfiles/vinblk
-						cp $tools/updater/set_meta_list2 $prfiles/set_meta_list
-					else
-						find output/bin -type f 2>/dev/null | sed 's/^output/system/' | sort > $prfiles/binblk
-						find output/vendor/bin -type f 2>/dev/null | sed 's/^output/system/' | sort > $prfiles/vinblk
-						cp $tools/updater/set_meta_list $prfiles/set_meta_list
-					fi
-					sed -i "/#BIN/ r $prfiles/binblk" $prfiles/set_meta_list
-					sed -i "/#VBIN/ r $prfiles/vinblk" $prfiles/set_meta_list
-					rm -rf $prfiles/binblk $prfiles/vinblk
-					cat $prfiles/set_meta_list > $prfiles/tmpmetalist
-				elif [[ $extractimg = "vendor" ]]; then
-					cp $tools/updater/set_meta_listV $prfiles/tmpmetalist
-				fi				
-				echo "$getmeta" | grep -v ":$(grep -m 1 "^$extractimg " <<< "$getmeta" | cut -d':' -f3)" | sort | while read line; do
-					i=$(echo "$line" | gawk '{print $1}')
-					if [[ ! $(grep "$i$" $prfiles/tmpmetalist) ]]; then
-						echo "$i" >> $prfiles/tmpmetalist
-					fi
-				done
-				echo "$getmeta" | grep -v " 0x0 " | sort | while read line; do
-					i=$(echo "$line" | gawk '{print $1}')
-					if [[ ! $(grep "$i$" $prfiles/tmpmetalist) ]]; then
-						echo "$i" >> $prfiles/tmpmetalist
-					fi
-				done
-				echo "$getmeta" | grep -v "0644\ 0x0\ \|0755\ 0x0\ " | sort | while read line; do
-					i=$(echo "$line" | gawk '{print $1}')
-					if [[ ! $(grep "$i$" $prfiles/tmpmetalist) ]]; then
-						echo "$i" >> $prfiles/tmpmetalist
-					fi
-				done
-				cat $prfiles/tmpmetalist | while read line; do
-					line2=$(echo "$line" | sed 's/\ -R$//')
-					if [[ $extractimg = "system" ]]; then
-						set_metadata1="set_metadata1"
-					else
-						set_metadata1="set_metadataV"
-					fi
-					if [[ -f "$line2" || -d "$line2" ]]; then
-						local i=$(grep "^$line2 " <<< "$getmeta")
+		apitemp=""
+	fi
+	banner
+	echo "$bluet$t_cust_prep$normal"
+	if [[ $apitmp -ge "19" ]]; then
+		local getmeta=$(python3 $tools/source/getmeta.py -s "$romdir/output" "$extractimg")
+		if [[ $extractimg = "system" || $extractimg = "vendor" ]]; then
+			if [[ $extractimg = "system" ]]; then
+				if [[ -f output/init.rc && -d output/system/app ]]; then
+					echo "$getmeta" | grep -v "system/system\|system/ " | while read i; do
 						local thefile=$(echo "$i" | gawk '{print $1}')
 						local uid=$(echo "$i" | gawk '{print $2}')
 						local gid=$(echo "$i" | gawk '{print $3}')
 						local mode=$(echo "$i" | gawk '{print $4}')
 						local cap=$(echo "$i" | gawk '{print $5}')
 						local con=$(echo "$i" | gawk '{print $6}')
-						if [[ $(echo "$line" | grep " -R$") ]]; then
-							if [[ $(echo "$line2" | grep "/bin$\|/bin/") ]]; then
-								fmode="0755"
-							else
-								fmode="0644"
-							fi
-							echo "set_metadata_recursive(\"/$thefile\", \"uid\", $uid, \"gid\", $gid, \"dmode\", $mode, \"fmode\", $fmode, \"capabilities\", $cap, \"selabel\", \"$con\");" >> $prfiles/$set_metadata1
+						echo "set_metadata(\"/$thefile\", \"uid\", $uid, \"gid\", $gid, \"mode\", $mode, \"capabilities\", $cap, \"selabel\", \"$con\");" >> $prfiles/root_meta
+					done
+					find output/system/bin -type f 2>/dev/null | sed 's/^output/system/' | sort > $prfiles/binblk
+					find output/system/vendor/bin -type f 2>/dev/null | sed 's/^output/system/' | sort > $prfiles/vinblk
+					cp $tools/updater/set_meta_list2 $prfiles/set_meta_list
+				else
+					find output/bin -type f 2>/dev/null | sed 's/^output/system/' | sort > $prfiles/binblk
+					find output/vendor/bin -type f 2>/dev/null | sed 's/^output/system/' | sort > $prfiles/vinblk
+					cp $tools/updater/set_meta_list $prfiles/set_meta_list
+				fi
+				sed -i "/#BIN/ r $prfiles/binblk" $prfiles/set_meta_list
+				sed -i "/#VBIN/ r $prfiles/vinblk" $prfiles/set_meta_list
+				rm -rf $prfiles/binblk $prfiles/vinblk
+				cat $prfiles/set_meta_list > $prfiles/tmpmetalist
+			elif [[ $extractimg = "vendor" ]]; then
+				cp $tools/updater/set_meta_listV $prfiles/tmpmetalist
+			fi				
+			echo "$getmeta" | grep -v ":$(grep -m 1 "^$extractimg " <<< "$getmeta" | cut -d':' -f3)" | sort | while read line; do
+				i=$(echo "$line" | gawk '{print $1}')
+				if [[ ! $(grep "$i$" $prfiles/tmpmetalist) ]]; then
+					echo "$i" >> $prfiles/tmpmetalist
+				fi
+			done
+			echo "$getmeta" | grep -v " 0x0 " | sort | while read line; do
+				i=$(echo "$line" | gawk '{print $1}')
+				if [[ ! $(grep "$i$" $prfiles/tmpmetalist) ]]; then
+					echo "$i" >> $prfiles/tmpmetalist
+				fi
+			done
+			echo "$getmeta" | grep -v "0644\ 0x0\ \|0755\ 0x0\ " | sort | while read line; do
+				i=$(echo "$line" | gawk '{print $1}')
+				if [[ ! $(grep "$i$" $prfiles/tmpmetalist) ]]; then
+					echo "$i" >> $prfiles/tmpmetalist
+				fi
+			done
+			cat $prfiles/tmpmetalist | while read line; do
+				line2=$(echo "$line" | sed 's/\ -R$//')
+				if [[ $extractimg = "system" ]]; then
+					set_metadata1="set_metadata1"
+				else
+					set_metadata1="set_metadataV"
+				fi
+				if [[ -f "$line2" || -d "$line2" ]]; then
+					local i=$(grep "^$line2 " <<< "$getmeta")
+					local thefile=$(echo "$i" | gawk '{print $1}')
+					local uid=$(echo "$i" | gawk '{print $2}')
+					local gid=$(echo "$i" | gawk '{print $3}')
+					local mode=$(echo "$i" | gawk '{print $4}')
+					local cap=$(echo "$i" | gawk '{print $5}')
+					local con=$(echo "$i" | gawk '{print $6}')
+					if [[ $(echo "$line" | grep " -R$") ]]; then
+						if [[ $(echo "$line2" | grep "/bin$\|/bin/") ]]; then
+							fmode="0755"
 						else
-							echo "set_metadata(\"/$thefile\", \"uid\", $uid, \"gid\", $gid, \"mode\", $mode, \"capabilities\", $cap, \"selabel\", \"$con\");" >> $prfiles/$set_metadata1
+							fmode="0644"
 						fi
+						echo "set_metadata_recursive(\"/$thefile\", \"uid\", $uid, \"gid\", $gid, \"dmode\", $mode, \"fmode\", $fmode, \"capabilities\", $cap, \"selabel\", \"$con\");" >> $prfiles/$set_metadata1
+					else
+						echo "set_metadata(\"/$thefile\", \"uid\", $uid, \"gid\", $gid, \"mode\", $mode, \"capabilities\", $cap, \"selabel\", \"$con\");" >> $prfiles/$set_metadata1
 					fi
-				done
-			fi
+				fi
+			done
 		fi
-		${usesudo2}umount output/
-		rm -rf $romdir/output $prfiles/set_meta_list $prfiles/tmpmetalist
 	fi
+	${usesudo2}umount output/
+	rm -rf $romdir/output $prfiles/set_meta_list $prfiles/tmpmetalist
 	extractimg=""
 }
 
@@ -4648,36 +4524,18 @@ install_binaries() {
 	banner
 	echo "$bluet$t_binary_installing$normal"
 	cd $tools
-	if [[ ! $cyg ]]; then
-		if [[ ! -d linux_tools ]]; then
-			rm -rf 7z 7z.so aapt adb adb64 make_ext4fs_32 make_ext4fs_64 sdat2img.py simg2img_32 simg2img_64 zipalign
-			(wget $dlurl/srk_linux_tools.zip 2>&1) >/dev/null
-			unzip srk_linux_tools.zip 2>&1 >/dev/null
-			rm -rf srk_linux_tools.zip
-		fi
-		if [[ ! -d $tools/boot/AIK ]]; then
-			cd $tools/boot
-			dlinfo="aik.tar.gz AIK-Linux"
-			aikdl
-			tar -xf aik.tar.gz 2>&1 >/dev/null
-			rm -rf aik.tar.gz
-			mv AIK-Linux AIK
-		fi
-	else
-		if [[ ! -d cyg_tools ]]; then
-			rm -rf aapt.exe adb.exe AdbWinApi.dll AdbWinUsbApi.dll Imgextractor.exe make_ext4fs.exe rimg2sdat.exe simg2img.exe zipalign.exe
-			(wget $dlurl/cyg_tools.zip 2>&1) >/dev/null
-			$p7z x -y cyg_tools.zip 2>&1 >/dev/null
-			rm -rf cyg_tools.zip
-		fi
-		if [[ ! -d $tools/boot/AIK2 ]]; then
-			mkdir -p $tools/boot/AIK2
-			cd $tools/boot/AIK2
-			dlinfo="aik2.zip Win32"
-			aikdl
-			$p7z x -y aik2.zip 2>&1 >/dev/null
-			rm -rf aik2.zip
-		fi
+	if [[ ! -d linux_tools ]]; then
+		(wget $dlurl/srk_linux_tools.zip 2>&1) >/dev/null
+		unzip srk_linux_tools.zip 2>&1 >/dev/null
+		rm -rf srk_linux_tools.zip
+	fi
+	if [[ ! -d $tools/boot/AIK ]]; then
+		cd $tools/boot
+		dlinfo="aik.tar.gz AIK-Linux"
+		aikdl
+		tar -xf aik.tar.gz 2>&1 >/dev/null
+		rm -rf aik.tar.gz
+		mv AIK-Linux AIK
 	fi
 	if [[ ! -d $tools/smali ]]; then
 		cd $tools
@@ -4695,10 +4553,6 @@ install_binaries() {
 		cd $tools/root/busybox
 		dlinfo="Busybox.zip https://forum.xda-developers.com/showthread.php?t=2239421 UPDATE-Busybox"
 		xdareg
-	fi
-	if [[ $bashwin && ! -f $ttools/Imgextractor.exe ]]; then
-		(wget $dlurl/Imgextractor.exe 2>&1) >/dev/null
-		mv Imgextractor.exe $ttools/
 	fi
 	cd $base
 	banner
@@ -4858,32 +4712,6 @@ isfullrom() {
 			fullrom="Yes"
 			fullrom1=$(echo "$greent$t_yes$normal")
 		fi
-	fi
-}
-isinitd() {
-	if [[ -d $romdir/bootimg/ramdisk ]]; then
-		cd $romdir/bootimg/ramdisk
-	elif [[ -f $romdir/system/init.rc ]]; then
-		cd $romdir/system
-	else
-		initdstatus="1"
-		initdstatus1="${redt}N/A$normal"
-		return
-	fi
-	inittest=""
-	while read line; do
-		inittest=$(${usesudo}grep "init\.d" $line | grep -v "lge_fota\|chargerlogo")
-		if [[ $inittest ]]; then
-			break
-		fi
-	done <<< "$(ls | grep .rc$)"
-
-	if [[ $inittest ]]; then
-		initdstatus="Yes"
-		initdstatus1="$greent$t_enabled$normal"
-	else
-		initdstatus="No"
-		initdstatus1="${redt}$t_disabled$normal"
 	fi
 }
 isinsecure() {
@@ -5289,14 +5117,8 @@ misc_tools() {
 			echo "$bluet$t_support_create$normal"
 			rm -rf $romdir/support.zip
 			mkdir -p $romdir/srk_support_zip
-			if [[ $cyg ]]; then
-				echo "CYGWIN" >> $romdir/srk_support_zip/info
-			elif [[ $bashwin ]]; then
-				echo "BASHWIN" >> $romdir/srk_support_zip/info
-			else
-				cat /etc/*-release | grep "DESCRIPTION" | cut -d"=" -f2 | sed 's/\"//g'>> $romdir/srk_support_zip/info
-				getconf LONG_BIT >> $romdir/srk_support_zip/info
-			fi
+			cat /etc/*-release | grep "DESCRIPTION" | cut -d"=" -f2 | sed 's/\"//g'>> $romdir/srk_support_zip/info
+			getconf LONG_BIT >> $romdir/srk_support_zip/info
 			echo "$superrv" >> $romdir/srk_support_zip/info
 			cat $prfiles/permtype >> $romdir/srk_support_zip/info
 			if [[ $(ls $prfiles | grep "deodex_") ]]; then
@@ -6098,14 +5920,6 @@ root_tools() {
 	done
 }
 signzip() {
-	if [[ $cyg ]]; then
-		banner
-		echo "$redb$yellowt$bold$t_error$normal"
-		echo "$redt$t_sign_cygwin$normal"
-		echo ""
-		read -p "$t_enter_continue"
-		return
-	fi
 	if [[ ! $signzipname ]]; then
 		signzipname="$signature2"
 	fi
@@ -6481,6 +6295,19 @@ underline=$(tput smul)
 normal=$(tput sgr0)
 clears=$(tput clear)
 dlurl="https://bitbucket.org/superr/superrs-kitchen/downloads"
+if [[ $(uname -s | grep "CYGWIN\|cygwin\|Cygwin") ]] || [[ $(find /mnt/c -name Windows -maxdepth 1 2>/dev/null | grep -m 1 -o Windows) = "Windows" || $(find /c -name Windows -maxdepth 1 2>/dev/null | grep -m 1 -o Windows) = "Windows" ]]; then
+	banner
+	echo "$redb$yellowt${bold}ERROR:$normal"
+	echo "${redt}This kitchen will only work properly in Linux."
+	echo ""
+	echo "${yellowt}If you are looking for a Windows kitchen, please take"
+	echo "a look at the donate version for Windows and Linux:"
+	echo ""
+	echo "https://forum.xda-developers.com/apps/superr-kitchen/windows-linux-superr-s-kitchen-v3-0-0-0-t3601702$normal"
+	echo ""
+	read -p "Press ENTER to exit"
+	exit
+fi
 if [[ $(echo $(pwd) | grep " ") ]]; then
 	banner
 	echo "$redb$yellowt${bold}ERROR:$normal"
@@ -6528,90 +6355,34 @@ if [[ ! $t_select ]]; then
 fi
 superrv=$(grep "SuperR's Kitchen v" README.md | gawk '{ print $4 }' | sed 's/*//g')
 ttools=$tools/linux_tools
-if [[ $(uname -s | grep "CYGWIN\|cygwin\|Cygwin") ]]; then
-	ttools=$tools/cyg_tools
-	if [[ ! -f $tools/cygnotice ]]; then
-		banner
-		echo "${blueb}CYGWIN $t_notice$normal"
-		echo -e "$bluet$t_cygwin_info$normal"
-		echo ""
-		read -p "$t_enter_continue"
-		touch $tools/cygnotice
-	fi
-	rm -rf $tools/depends/dependencies2
-	cp $tools/depends/dependencies $tools/depends/dependencies2
-	sed -i '/sudo/d; 1i7z\ngit' $tools/depends/dependencies2
-	dependencies="dependencies2"
-	cyg=".exe"
-	script="bat"
-	AIK=$tools/boot/AIK2
-	bashwin=""
-	usesudo2=""
-	adb=$ttools/adb.exe
-	zipalign=$ttools/zipalign.exe
-	imgextractor=$ttools/Imgextractor.exe
-	p7z=7z
-	aapt=$ttools/aapt.exe
-elif [[ $(find /mnt/c -name Windows -maxdepth 1 2>/dev/null | grep -m 1 -o Windows) = "Windows" || $(find /c -name Windows -maxdepth 1 2>/dev/null | grep -m 1 -o Windows) = "Windows" ]]; then
-	if [[ $(getconf LONG_BIT) != "64" ]]; then
-		banner
-		echo "${redt}You need a 64-bit OS to run the kitchen in WSL.$normal"
-		echo ""
-		read -p "$t_enter_exit"
-		exit
-	fi
-	rm -rf $tools/depends/dependencies2
-	cp $tools/depends/dependencies $tools/depends/dependencies2
-	sed -i '1i7z' $tools/depends/dependencies2
-	dependencies="dependencies2"
-	cyg=""
-	script="sh"
-	AIK=$tools/boot/AIK
-	bashwin="1"
-	usesudo2="sudo "
+AIK=$tools/boot/AIK
+usesudo2="sudo "
+if [[ $(getconf LONG_BIT) = "64" ]]; then
 	adb=$ttools/adb64
-	zipalign=$ttools/zipalign
-	imgextractor=$ttools/Imgextractor.exe
-	p7z=7z
-	aapt="$ttools/aapt"
 else
-	cyg=""
-	script="sh"
-	AIK=$tools/boot/AIK
-	bashwin=""
-	dependencies="dependencies"
-	usesudo2="sudo "
-	if [[ $(getconf LONG_BIT) = "64" ]]; then
-		adb=$ttools/adb64
-	else
-		adb=$ttools/adb
-	fi
-	zipalign=$ttools/zipalign
-	p7z=$ttools/7z
-	aapt="$ttools/aapt"
+	adb=$ttools/adb
 fi
+zipalign=$ttools/zipalign
+p7z=$ttools/7z
+aapt="$ttools/aapt"
 if [[ ! $firstrun = "1" ]]; then
 	export firstrun="1"
-	if [[ ! $cyg ]]; then
-		chkstat &
-	fi
+	chkstat &
 fi
-if [[ ! $cyg ]]; then
-	if [[ $(which id) ]]; then
-		if [[ $(id -u) = "0" ]]; then
-			userid="root"
-		fi
-	elif [[ $EUID = "0" ]]; then
+if [[ $(which id) ]]; then
+	if [[ $(id -u) = "0" ]]; then
 		userid="root"
 	fi
-	if [[ $userid = "root" ]]; then
-		banner
-		echo "$redb$yellowt$bold$t_error$normal"
-		echo "$redt$t_startup_no_root$normal"
-		echo ""
-		read -p "$t_enter_exit"
-		exit
-	fi
+elif [[ $EUID = "0" ]]; then
+	userid="root"
+fi
+if [[ $userid = "root" ]]; then
+	banner
+	echo "$redb$yellowt$bold$t_error$normal"
+	echo "$redt$t_startup_no_root$normal"
+	echo ""
+	read -p "$t_enter_exit"
+	exit
 fi
 if [[ ! $(echo "$BASH" | grep bash$) ]]; then
 	banner
@@ -6626,7 +6397,7 @@ if [[ ! -f $tools/depmet ]]; then
 	cd $tools
 	depcheck=""
 	line=""
-	for line in $(cat depends/$dependencies); do
+	for line in $(cat depends/dependencies); do
 		depcheck=$(which $line 2>/dev/null)
 		if [[ ! $depcheck ]]; then
 			echo "$line " >> depinstall
@@ -6643,17 +6414,7 @@ if [[ ! -f $tools/depmet ]]; then
 		echo ""
 		echo "$yellowt$depinstall$normal"
 		echo ""
-		if [[ ! $cyg ]]; then
-			debinstall
-			if [[ $bashwin ]]; then
-				debpkg="p7zip-full"
-				debinstall
-			fi
-		else
-			rm -f depinstall
-			read -p "$t_enter_exit"
-			exit
-		fi
+		debinstall
 	fi
 	if [[ $(python3 -V | gawk '{print $2}' | sed 's/\.//g') < "350" ]]; then
 		banner
@@ -6685,40 +6446,23 @@ if [[ ! -f $tools/depmet ]]; then
 		echo ""
 		echo "${yellowt}$debpkg$normal"
 		echo ""
-		if [[ ! $cyg ]]; then
-			debinstall
-		else
-			banner
-			read -p "$t_enter_exit"
-			exit
-		fi
+		debinstall
 	fi
 	touch depmet
 	cd $base
 fi
-if [[ ! $cyg ]]; then
-	if [[ $(getconf LONG_BIT) = "64" ]]; then
-		make_ext4fs="$ttools/make_ext4fs_64"
-		simg2img="$ttools/simg2img_64"
-		vdexext="$ttools/vdexExtractor_64"
-		lz4="$tools/boot/AIK/bin/linux/x86_64/lz4"
-	else
-		make_ext4fs="$ttools/make_ext4fs_32"
-		simg2img="$ttools/simg2img_32"
-		vdexext="$ttools/vdexExtractor_32"
-		lz4="$tools/boot/AIK/bin/linux/i686/lz4"
-	fi
+if [[ $(getconf LONG_BIT) = "64" ]]; then
+	make_ext4fs="$ttools/make_ext4fs_64"
+	simg2img="$ttools/simg2img_64"
+	vdexext="$ttools/vdexExtractor_64"
+	lz4="$tools/boot/AIK/bin/linux/x86_64/lz4"
 else
-	make_ext4fs="$ttools/make_ext4fs.exe"
-	simg2img="$ttools/simg2img.exe"
+	make_ext4fs="$ttools/make_ext4fs_32"
+	simg2img="$ttools/simg2img_32"
+	vdexext="$ttools/vdexExtractor_32"
+	lz4="$tools/boot/AIK/bin/linux/i686/lz4"
 fi
-if [[ $cyg ]] && [[ ! -f $ttools/simg2img.exe || ! -f $ttools/make_ext4fs.exe || ! -f $ttools/adb.exe || ! -f $ttools/zipalign.exe || ! -f $ttools/Imgextractor.exe || ! -f $ttools/aapt.exe || ! -f $tools/boot/AIK2/unpackimg.bat || ! -f $tools/root/root_zips/SuperSU.zip  || ! -f $tools/root/busybox/Busybox.zip ]]; then
-	banner
-	echo "$redb$yellowt$bold$t_error$normal"
-	echo "$redt$t_startup_bin$normal"
-	echo ""
-	install_binaries
-elif [[ ! $cyg ]] && [[ ! -f $ttools/7z || ! -f $ttools/simg2img_64 || ! -f $ttools/make_ext4fs_64 || ! -f $ttools/adb64 || ! -f $ttools/zipalign || ! -f $ttools/aapt || ! -f $tools/boot/AIK/unpackimg.sh || ! -f $tools/root/root_zips/SuperSU.zip  || ! -f $tools/root/busybox/Busybox.zip ]]; then
+if [[ ! -f $ttools/7z || ! -f $ttools/simg2img_64 || ! -f $ttools/make_ext4fs_64 || ! -f $ttools/adb64 || ! -f $ttools/zipalign || ! -f $ttools/aapt || ! -f $tools/boot/AIK/unpackimg.sh || ! -f $tools/root/root_zips/SuperSU.zip  || ! -f $tools/root/busybox/Busybox.zip ]]; then
 	banner
 	echo "$redb$yellowt$bold$t_error$normal"
 	echo "$redt$t_startup_bin$normal"
@@ -6798,10 +6542,8 @@ while [[ $loop = "0" ]]; do
 		api=$(grep "ro.build.version.sdk" $romdir/build.prop | cut -d"=" -f2)
 	fi
 	export usesudo=""
-	if [[ ! $cyg ]]; then
-		if [[ ! -f $romdir/system/init.rc && ! -d $romdir/system/system/app ]]; then
-			export usesudo="sudo "
-		fi
+	if [[ ! -f $romdir/system/init.rc && ! -d $romdir/system/system/app ]]; then
+		export usesudo="sudo "
 	fi
 
 	banner
