@@ -4425,12 +4425,13 @@ imgextract() {
 	${usesudo2}cp -R output/* ${extractimg}/
 	${usesudo2}chown -hR $myuser:$myuser $romdir/${extractimg}
 	${usesudo2}chmod -R a+rwX $romdir/${extractimg}
-	apitmp1=$(find system -name build.prop 2>/dev/null | grep -m 1 "")
-	if [[ -f $apitmp1 ]]; then
-		apitmp=$(grep "ro.build.version.sdk" "$apitmp1" | cut -d"=" -f2)
-	else
-		apitemp=""
-	fi
+	apitmp=""
+	for i in $(find system -name build.prop 2>/dev/null); do
+		if [[ -f "$i" && $(grep "ro.build.version.sdk" "$i") ]]; then
+			apitmp=$(grep "ro.build.version.sdk" "$i" | cut -d"=" -f2)
+			break
+		fi
+	done
 	banner
 	echo "$bluet$t_cust_prep$normal"
 	if [[ $apitmp -ge "19" ]]; then
@@ -6428,13 +6429,17 @@ if [[ ! -f $tools/depmet ]]; then
 		javabad="1"
 	fi
 	if [[ ! $javabad ]]; then
-		javaver=$(java -version 2>&1 | grep "java version\|openjdk version" | cut -d'"' -f2 | cut -c 1,2,3)
+		javaver=$(java -version 2>&1 | grep "java version\|openjdk version" | cut -d'"' -f2)
 		if [[ $(echo "$javaver" | grep "-") ]]; then
-			if [[ $(echo "$javaver" | sed 's/[^0-9]*//g') -lt "8" ]]; then
+			if [[ $(echo "$javaver" | cut -c 1,2,3 | sed 's/[^0-9]*//g') -lt "8" ]]; then
+				javabad="1"
+			fi
+		elif [[ $(echo "$javaver" | grep "\.") ]]; then
+			if [[ $(echo "$javaver" | cut -c 1,2,3 | cut -c 1,3) -lt "18" ]]; then
 				javabad="1"
 			fi
 		else
-			if [[ $(echo "$javaver" | cut -c 1,3) -lt "18" ]]; then
+			if [[ $(echo "$javaver") -lt "8" ]]; then
 				javabad="1"
 			fi
 		fi
