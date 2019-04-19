@@ -1,7 +1,16 @@
-#** SuperR's Kitchen v1.1.9.5 **#
-##by SuperR##
+# **SuperR's Kitchen v1.1.9.5** #  
+## by SuperR ##
 
-##**FEATURES**##
+#### Source and Maximum Changelog
+* https://forum.xda-developers.com/chef-central/android/kitchen-superrs-kitchen-t3202296  
+* 0.1 - 1.0.5.5 https://github.com/Talustus/superrs-kitchen  
+* 1.0.5.9 - 1.1.3.2 https://github.com/nilu2000/superrs-kitchen  
+* 1.1.3.3 - 1.1.3.5 https://github.com/Makova/New_Kitchen_superrs  
+* 1.1.4.4 -1.1.4.9 https://github.com/SuperLangdon/superrs-kitchen-EN  
+* 1.1.6.7 - 1.1.9.5 bitbucket  
+
+
+## **FEATURES** ##
 
 **Extract and create ROM from:**
 
@@ -82,7 +91,7 @@
 **Add/remove user app support (/data/app)**  
 **Sign zips**  
 
-##**USAGE:**##
+## **USAGE:** ##
 
 1. Run "superr" from it's location in terminal  
 2. Create new project using the menu  
@@ -104,7 +113,7 @@
 4. Extract for new ROM from the Main menu.  
 5. Enjoy!  
 
-##**EXAMPLE:**##
+## **EXAMPLE:** ##
 
 In your terminal, type the following where "/home/user/location/" is the directory where the script lives:
 
@@ -117,6 +126,6 @@ cd /home/user/location/
 
 Double-click the superr file and choose "Run in Terminal" if your OS supports it.
 
-##**DEPENDENCIES:**##
+## **DEPENDENCIES:** ##
 
 * Java 7 (or higher)
